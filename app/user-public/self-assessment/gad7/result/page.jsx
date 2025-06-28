@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { Suspense } from "react";
 import Sidebar from "../../../Sidebar";
 import ResultContent from "./ResultContent";
 
