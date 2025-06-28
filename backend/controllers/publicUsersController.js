@@ -10,27 +10,66 @@ exports.getAllPublicUsers = async (req, res) => {
   }
 };
 
-exports.login = async (req, res) => {
+exports.loginPublicUser = async (req, res) => {
   try {
-    const email = (req.body.email || "").trim();
-    const password = (req.body.password || "").trim();
+    const { email, password } = req.body;
+    
+    // Check if email and password are provided
     if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Email and password are required.' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Email and password are required.' 
+      });
     }
-    const [rows] = await db.query(
-      'SELECT * FROM user_public WHERE email = ? AND password = ? LIMIT 1',
-      [email, password]
-    );
-    console.log('Login attempt:', { email, password, rows });
-    if (!rows || rows.length === 0) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password.' });
+
+    // Query user by email only (don't compare password in SQL for security)
+    const [rows] = await db.query("SELECT * FROM user_public WHERE email = ?", [email]);
+    
+    // Check if user exists
+    if (rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found.' 
+      });
     }
+
     const user = rows[0];
-    const token = jwt.sign({ id: user.id, email: user.email, role: 'public' }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    
+    // Compare password (assuming plain text for now - should be hashed in production)
+    if (user.password !== password) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid email or password.' 
+      });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        id: user.id, 
+        email: user.email, 
+        role: 'public' 
+      }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '1d' }
+    );
+
+    // Remove password from user object before sending response
     delete user.password;
-    res.json({ success: true, token, user });
+
+    // Return success response
+    res.status(200).json({ 
+      success: true, 
+      message: "Login successful", 
+      user,
+      token 
+    });
+
   } catch (err) {
-    console.error('Public login error:', err);
-    res.status(500).json({ success: false, message: 'Internal Server Error' });
+    console.error("LOGIN ERROR:", err);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal Server Error' 
+    });
   }
 }; 
