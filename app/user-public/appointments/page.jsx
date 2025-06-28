@@ -4,7 +4,7 @@ import Sidebar from "../Sidebar";
 import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
 
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = "http://194.164.148.171:5000";
 
 export default function AppointmentsPage() {
   const router = useRouter();

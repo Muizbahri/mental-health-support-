@@ -67,7 +67,7 @@ export default function PublicSignUpPage() {
       formData.append("phone_number", form.phone);
       formData.append("password", form.password);
       if (form.profileImage) formData.append("profile_image", form.profileImage);
-      const res = await fetch("http://localhost:5000/api/add-public", {
+      const res = await fetch("http://194.164.148.171:5000/api/add-public", {
         method: "POST",
         body: formData,
       });

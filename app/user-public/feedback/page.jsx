@@ -41,7 +41,7 @@ export default function FeedbackPage() {
     if (!token) return;
     const payload = JSON.parse(atob(token.split(".")[1]));
     const userId = payload.id;
-    fetch(`http://localhost:5000/api/users/user-public/profile?id=${userId}`, {
+    fetch(`http://194.164.148.171:5000/api/users/user-public/profile?id=${userId}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
@@ -69,7 +69,7 @@ export default function FeedbackPage() {
     }
 
     try {
-      const res = await fetch("http://localhost:5000/api/feedbacks", {
+      const res = await fetch("http://194.164.148.171:5000/api/feedbacks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

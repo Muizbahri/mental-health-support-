@@ -348,7 +348,7 @@ bot.on('location', async (msg) => {
   trackMessage(chatId, searchingMsg);
 
   try {
-    const response = await fetch('http://localhost:5000/api/telegram/find-nearest', {
+    const response = await fetch('http://194.164.148.171:5000/api/telegram/find-nearest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ latitude, longitude }),
