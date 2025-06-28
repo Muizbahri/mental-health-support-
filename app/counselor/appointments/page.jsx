@@ -25,7 +25,7 @@ export default function CounselorAppointmentsPage() {
 
   function fetchAppointments(assignedTo) {
     setLoading(true);
-    fetch(`http://localhost:5000/api/appointments/counselor/${encodeURIComponent(assignedTo)}`)
+    fetch(`http://194.164.148.171:5000/api/appointments/counselor/${encodeURIComponent(assignedTo)}`)
       .then(res => res.json())
       .then(data => {
         setAppointments((data.success ? data.data : []).map(a => ({
@@ -78,10 +78,10 @@ export default function CounselorAppointmentsPage() {
       status: form.status,
       date_time: form.date + (form.time ? ` ${form.time}` : "")
     };
-    let url = "http://localhost:5000/api/appointments";
+    let url = "http://194.164.148.171:5000/api/appointments";
     let method = "POST";
     if (modalMode === "edit" && current) {
-      url = `http://localhost:5000/api/appointments/${current.id}`;
+      url = `http://194.164.148.171:5000/api/appointments/${current.id}`;
       method = "PUT";
     }
     const res = await fetch(url, {
@@ -100,7 +100,7 @@ export default function CounselorAppointmentsPage() {
   async function handleDelete(id) {
     if (!window.confirm("Are you sure you want to delete this appointment?")) return;
     setDeletingId(id);
-    const res = await fetch(`http://localhost:5000/api/appointments/${id}`, { method: "DELETE" });
+    const res = await fetch(`http://194.164.148.171:5000/api/appointments/${id}`, { method: "DELETE" });
     if (res.ok) {
       setAppointments(appts => appts.filter(a => a.id !== id));
     } else {

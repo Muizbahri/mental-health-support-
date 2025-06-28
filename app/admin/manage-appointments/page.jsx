@@ -345,7 +345,7 @@ export default function ManageAppointmentsPage() {
   async function handleEditSave(updatedData) {
     setEditModal((m) => ({ ...m, loading: true, error: '' }));
     try {
-      const res = await fetch(`http://localhost:5000/api/appointments/${editModal.appointment.id}`, {
+      const res = await fetch(`http://194.164.148.171:5000/api/appointments/${editModal.appointment.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({...updatedData, assigned_to: updatedData.assigned_to}),
@@ -368,7 +368,7 @@ export default function ManageAppointmentsPage() {
     setFetching(true);
     setFetchError("");
     try {
-      const res = await fetch("http://localhost:5000/api/appointments");
+      const res = await fetch("http://194.164.148.171:5000/api/appointments");
       const data = await res.json();
       if (data.success) {
         setAppointments(data.data);
@@ -395,7 +395,7 @@ export default function ManageAppointmentsPage() {
     setError && setError("");
     setSuccessMsg("");
     try {
-      const res = await fetch("http://localhost:5000/api/appointments", {
+      const res = await fetch("http://194.164.148.171:5000/api/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({...formData, assigned_to: formData.assigned_to}),
@@ -418,7 +418,7 @@ export default function ManageAppointmentsPage() {
     if (!window.confirm("Are you sure you want to delete this appointment?")) return;
     setDeleteError("");
     try {
-      const res = await fetch(`http://localhost:5000/api/appointments/${id}`, { method: 'DELETE' });
+      const res = await fetch(`http://194.164.148.171:5000/api/appointments/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
         fetchAppointments();

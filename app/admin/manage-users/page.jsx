@@ -49,9 +49,9 @@ export default function ManageUsersPage() {
   const fetchData = async () => {
     try {
       const [psychiatristsRes, counselorsRes, publicUsersRes] = await Promise.all([
-        fetch("http://localhost:5000/api/psychiatrists"),
-        fetch("http://localhost:5000/api/counselors"),
-        fetch("http://localhost:5000/api/users/public")
+        fetch("http://194.164.148.171:5000/api/psychiatrists"),
+        fetch("http://194.164.148.171:5000/api/counselors"),
+        fetch("http://194.164.148.171:5000/api/users/public")
       ]);
       const psychiatristsData = await psychiatristsRes.json();
       const counselorsData = await counselorsRes.json();
@@ -212,7 +212,7 @@ function UserTable({ title, columns, data, onAddNew, onEdit, onDelete }) {
                       {col === "certificate" ? (
                         row[col] ? (
                           <a
-                            href={`http://localhost:5000/uploads/${row[col]}`}
+                            href={`http://194.164.148.171:5000/uploads/${row[col]}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             style={{ color: '#2563eb', textDecoration: 'underline' }}
@@ -225,7 +225,7 @@ function UserTable({ title, columns, data, onAddNew, onEdit, onDelete }) {
                       ) : col === "profile_image" ? (
                         row[col] ? (
                           <img
-                            src={`http://localhost:5000/uploads/${row[col]}`}
+                            src={`http://194.164.148.171:5000/uploads/${row[col]}`}
                             alt="Profile"
                             style={{ width: '32px', height: '32px', borderRadius: '50%' }}
                           />
@@ -415,7 +415,7 @@ function UserModal({ type, user, onClose }) {
     });
     const loadingToast = toast.loading(isEdit ? 'Updating user...' : 'Adding user...');
     try {
-      const res = await fetch(`http://localhost:5000${endpoint}`, {
+      const res = await fetch(`http://194.164.148.171:5000${endpoint}`, {
         method,
         body: formData
       });

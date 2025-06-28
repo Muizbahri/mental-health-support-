@@ -91,7 +91,7 @@ export default function PsychiatristProfilePage() {
               <label className="block text-center font-medium text-gray-700 mb-1">Profile Image</label>
               {profile.profile_image ? (
                 <img
-                  src={`http://localhost:5000/uploads/${profile.profile_image}`}
+                  src={`http://194.164.148.171:5000/uploads/${profile.profile_image}`}
                   alt="Profile"
                   className="w-24 h-24 rounded-full object-cover border-4 border-blue-100 bg-gray-100"
                   onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
@@ -156,7 +156,7 @@ export default function PsychiatristProfilePage() {
                   <FileText size={18} className="text-gray-400" />
                   {profile.certificate ? (
                     <>
-                      <a href={`http://localhost:5000/uploads/${profile.certificate}`} className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer" download>
+                      <a href={`http://194.164.148.171:5000/uploads/${profile.certificate}`} className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer" download>
                         {profile.certificate}
                         <Download size={16} className="inline ml-1" />
                       </a>
@@ -174,7 +174,7 @@ export default function PsychiatristProfilePage() {
                           <div className="bg-white rounded-lg shadow-lg p-4 max-w-3xl w-full relative flex flex-col items-center">
                             <h2 className="text-lg font-bold mb-2">Certificate Preview</h2>
                             <iframe
-                              src={`http://localhost:5000/uploads/${profile.certificate}`}
+                              src={`http://194.164.148.171:5000/uploads/${profile.certificate}`}
                               width="700"
                               height="500"
                               title="Certificate Preview"

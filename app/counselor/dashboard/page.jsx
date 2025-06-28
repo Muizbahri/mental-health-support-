@@ -73,7 +73,7 @@ export default function CounselorDashboard() {
     const user = JSON.parse(localStorage.getItem("counselorUser"));
     if (!user) return;
     // Fetch Upcoming Appointments (In Progress)
-    fetch(`http://localhost:5000/api/appointments/counselor/${encodeURIComponent(user.full_name)}`)
+    fetch(`http://194.164.148.171:5000/api/appointments/counselor/${encodeURIComponent(user.full_name)}`)
       .then(res => res.json())
       .then(data => {
         const all = data.success ? data.data : [];
@@ -84,11 +84,11 @@ export default function CounselorDashboard() {
         }));
       });
     // Fetch Emergency Cases
-    fetch(`http://localhost:5000/api/emergency_cases?assigned_to=${encodeURIComponent(user.full_name)}`)
+    fetch(`http://194.164.148.171:5000/api/emergency_cases?assigned_to=${encodeURIComponent(user.full_name)}`)
       .then(res => res.json())
       .then(data => setStats(s => ({ ...s, emergency: data.success ? data.data.length : 0 })));
     // Fetch Materials
-    fetch("http://localhost:5000/api/materials")
+    fetch("http://194.164.148.171:5000/api/materials")
       .then(res => res.json())
       .then(data => setStats(s => ({ ...s, materials: data.success ? data.data.length : 0 })));
   }, []);

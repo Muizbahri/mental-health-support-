@@ -281,7 +281,7 @@ export default function ManageEmergencyPage() {
     setFetching(true);
     setFetchError("");
     try {
-      const res = await fetch('http://localhost:5000/api/emergency_cases');
+      const res = await fetch('http://194.164.148.171:5000/api/emergency_cases');
       const data = await res.json();
       if (data.success) {
         setCases(data.data);
@@ -309,7 +309,7 @@ export default function ManageEmergencyPage() {
       role: formData.role,
     };
     try {
-      const res = await fetch('http://localhost:5000/api/emergency_cases', {
+      const res = await fetch('http://194.164.148.171:5000/api/emergency_cases', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sendData),
@@ -330,7 +330,7 @@ export default function ManageEmergencyPage() {
   const handleDeleteCase = async (id) => {
     if (!window.confirm('Are you sure you want to delete this emergency case?')) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/emergency_cases/${id}`, {
+      const res = await fetch(`http://194.164.148.171:5000/api/emergency_cases/${id}`, {
         method: 'DELETE',
       });
       const data = await res.json();
@@ -360,7 +360,7 @@ export default function ManageEmergencyPage() {
       role: formData.role,
     };
     try {
-      const res = await fetch(`http://localhost:5000/api/emergency_cases/${editCaseData.id}`, {
+      const res = await fetch(`http://194.164.148.171:5000/api/emergency_cases/${editCaseData.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sendData),

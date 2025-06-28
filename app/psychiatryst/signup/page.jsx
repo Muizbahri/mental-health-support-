@@ -147,7 +147,7 @@ export default function PsychiatristSignUpPage() {
       formData.append("latitude", form.latitude);
       formData.append("longitude", form.longitude);
       formData.append("password", form.password);
-      const res = await fetch("http://localhost:5000/api/add-psychiatrist", {
+      const res = await fetch("http://194.164.148.171:5000/api/add-psychiatrist", {
         method: "POST",
         body: formData
       });

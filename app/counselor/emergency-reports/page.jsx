@@ -26,7 +26,7 @@ export default function EmergencyReportsPage() {
     const user = JSON.parse(localStorage.getItem("counselorUser"));
     userRef.current = user;
     if (!user) return;
-    fetch(`http://localhost:5000/api/emergency_cases?assigned_to=${encodeURIComponent(user.full_name)}`)
+    fetch(`http://194.164.148.171:5000/api/emergency_cases?assigned_to=${encodeURIComponent(user.full_name)}`)
       .then(res => res.json())
       .then(data => {
         setCases(data.success ? data.data : []);
@@ -71,7 +71,7 @@ export default function EmergencyReportsPage() {
   async function handleEditSubmit(e) {
     e.preventDefault();
     if (!current) return;
-    const res = await fetch(`http://localhost:5000/api/emergency_cases/${current.id}`, {
+    const res = await fetch(`http://194.164.148.171:5000/api/emergency_cases/${current.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(editForm),
@@ -87,7 +87,7 @@ export default function EmergencyReportsPage() {
   async function handleDelete(id) {
     if (!window.confirm("Are you sure you want to delete this emergency case?")) return;
     setDeletingId(id);
-    const res = await fetch(`http://localhost:5000/api/emergency_cases/${id}`, { method: "DELETE" });
+    const res = await fetch(`http://194.164.148.171:5000/api/emergency_cases/${id}`, { method: "DELETE" });
     if (res.ok) {
       setCases(cs => cs.filter(c => c.id !== id));
     } else {
