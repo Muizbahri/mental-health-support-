@@ -78,6 +78,7 @@ export default function PublicSignUpPage() {
         setError(data.message || "Sign up failed");
       }
     } catch (err) {
+      console.error(err);
       setError("Sign up failed: " + err.message);
     } finally {
       setLoading(false);
