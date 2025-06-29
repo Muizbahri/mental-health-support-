@@ -17,8 +17,6 @@ const defaultIcon = new L.Icon({
 
 const defaultPosition = [3.139, 101.6869]; // Default to Kuala Lumpur
 
-const geoapifyApiKey = process.env.NEXT_PUBLIC_GEOAPIFY_KEY;
-
 function ChangeView({ center, zoom, bounds }) {
   const map = useMap();
   if (bounds && bounds.isValid()) {
@@ -34,6 +32,7 @@ export default function MapComponent({
   selectedProfessional = null,
   routeCoords = null,
   userLocation = null,
+  geoapifyApiKey,
 }) {
   const [isClient, setIsClient] = useState(false);
 

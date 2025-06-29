@@ -21,6 +21,8 @@ const hospitals = [
 
 const ReactPlayer = dynamic(() => import("react-player"), { ssr: false });
 
+const geoapifyApiKey = process.env.NEXT_PUBLIC_GEOAPIFY_KEY;
+
 function CalendarWidget({ appointments = [] }) {
   const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -298,7 +300,7 @@ export default function PublicDashboard() {
               <span className="font-semibold text-gray-800 text-lg">Nearby Hospitals & Clinics</span>
             </div>
             <div className="h-48 w-full rounded-lg bg-gray-200 mb-4 overflow-hidden">
-              <MapComponent professionals={mapProfessionals} selectedProfessional={selectedProfessional} />
+              <MapComponent professionals={mapProfessionals} selectedProfessional={selectedProfessional} geoapifyApiKey={geoapifyApiKey} />
             </div>
             <div className="grid grid-rows-2 grid-flow-col auto-cols-max gap-4 overflow-x-auto pb-4" style={{gridTemplateRows: 'repeat(2, minmax(0, 1fr))'}}>
               {professionals.map((pro, i) => (
