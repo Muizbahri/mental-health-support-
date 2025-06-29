@@ -17,6 +17,8 @@ const defaultIcon = new L.Icon({
 
 const defaultPosition = [3.139, 101.6869]; // Default to Kuala Lumpur
 
+const geoapifyApiKey = process.env.NEXT_PUBLIC_GEOAPIFY_KEY;
+
 function ChangeView({ center, zoom, bounds }) {
   const map = useMap();
   if (bounds && bounds.isValid()) {
@@ -56,7 +58,7 @@ export default function MapComponent({
           scrollWheelZoom={true}
         >
           <TileLayer
-            url={`https://maps.geoapify.com/v1/tile/osm-bright/{z}/{x}/{y}.png?apiKey=${process.env.NEXT_PUBLIC_GEOAPIFY_KEY}`}
+            url={`https://maps.geoapify.com/v1/tile/osm-bright/{z}/{x}/{y}.png?apiKey=${geoapifyApiKey}`}
             attribution='&copy; <a href="https://www.geoapify.com/">Geoapify</a> contributors'
           />
           
