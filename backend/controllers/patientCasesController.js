@@ -1,4 +1,29 @@
-const db = require('../config/db');
+let db;
+try {
+  db = require('../config/db');
+} catch (error) {
+  console.error('Failed to load database in patientCasesController:', error);
+  // Export error handlers
+  exports.getAllPatientCases = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  exports.getPatientCasesByPsychiatrist = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  exports.getPatientCaseById = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  exports.createPatientCase = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  exports.updatePatientCase = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  exports.deletePatientCase = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  return;
+}
 
 // GET all patient cases, with optional filter by assigned_to
 exports.getAllPatientCases = async (req, res) => {

@@ -18,7 +18,8 @@ router.post('/signup', async (req, res) => {
       [fullName, icNumber, age, email, secretCode, phone, hashedPassword]
     );
     // Create JWT
-    const token = jwt.sign({ email, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key';
+    const token = jwt.sign({ email, role: 'admin' }, jwtSecret, { expiresIn: '1d' });
     res.json({ success: true, token });
   } catch (err) {
     console.error('Signup error:', err);
@@ -39,7 +40,8 @@ router.post('/login', async (req, res) => {
     if (!match) {
       return res.status(400).json({ success: false, message: 'Invalid email or password' });
     }
-    const token = jwt.sign({ email, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key';
+    const token = jwt.sign({ email, role: 'admin' }, jwtSecret, { expiresIn: '1d' });
     res.json({ success: true, token });
   } catch (err) {
     console.error('Login error:', err);
@@ -52,7 +54,8 @@ function verifyAdminToken(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ success: false, message: 'No token provided' });
   const token = authHeader.split(' ')[1];
-  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+  const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key';
+  jwt.verify(token, jwtSecret, (err, decoded) => {
     if (err) return res.status(401).json({ success: false, message: 'Invalid token' });
     req.admin = decoded;
     next();

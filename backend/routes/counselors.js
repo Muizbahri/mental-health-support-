@@ -1,14 +1,43 @@
 const express = require('express');
 const router = express.Router();
+
+// Wrap database import in try-catch to prevent module loading errors
+let db;
+try {
+  db = require('../config/db');
+} catch (error) {
+  console.error('Failed to load database in counselors route:', error);
+  // Export a router with error handlers
+  router.use('*', (req, res) => {
+    res.status(500).json({ success: false, message: 'Database connection error' });
+  });
+  module.exports = router;
+  return;
+}
+
+// Wrap controller import in try-catch to prevent module loading errors
+let counselorsController;
+try {
+  counselorsController = require('../controllers/counselorsController');
+} catch (error) {
+  console.error('Failed to load counselorsController:', error);
+  // Export a router with error handlers
+  router.use('*', (req, res) => {
+    res.status(500).json({ success: false, message: 'Controller loading error' });
+  });
+  module.exports = router;
+  return;
+}
+
 const {
   getCounselors,
   getCounselorById,
   createCounselor,
   updateCounselor,
   deleteCounselor
-} = require('../controllers/counselorsController');
+} = counselorsController;
+
 const upload = require('../utils/upload');
-const db = require('../config/db');
 
 // GET /api/counselors
 router.get('/counselors', getCounselors);

@@ -1,12 +1,28 @@
 const express = require('express');
 const router = express.Router();
+
+// Wrap controller import in try-catch to prevent module loading errors
+let psychiatristsController;
+try {
+  psychiatristsController = require('../controllers/psychiatristsController');
+} catch (error) {
+  console.error('Failed to load psychiatristsController:', error);
+  // Export a router with error handlers
+  router.use('*', (req, res) => {
+    res.status(500).json({ success: false, message: 'Controller loading error' });
+  });
+  module.exports = router;
+  return;
+}
+
 const {
   getPsychiatrists,
   getPsychiatristById,
   createPsychiatrist,
   updatePsychiatrist,
   deletePsychiatrist
-} = require('../controllers/psychiatristsController');
+} = psychiatristsController;
+
 const upload = require('../utils/upload');
 
 // GET /api/psychiatrists

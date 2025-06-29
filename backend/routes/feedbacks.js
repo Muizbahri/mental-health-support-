@@ -1,6 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
+
+// Wrap database import in try-catch to prevent module loading errors
+let db;
+try {
+  db = require('../config/db');
+} catch (error) {
+  console.error('Failed to load database in feedbacks route:', error);
+  // Export a router with error handlers
+  router.use('*', (req, res) => {
+    res.status(500).json({ success: false, message: 'Database connection error' });
+  });
+  module.exports = router;
+  return;
+}
 
 // Get feedbacks by user_role - DEPRECATED in favor of specific routes below
 // router.get('/:role', async (req, res) => {

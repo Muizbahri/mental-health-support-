@@ -1,6 +1,20 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
+
+// Wrap database import in try-catch to prevent module loading errors
+let db;
+try {
+  db = require('../config/db');
+} catch (error) {
+  console.error('Failed to load database in appointments route:', error);
+  // Export a router with error handlers
+  router.use('*', (req, res) => {
+    res.status(500).json({ success: false, message: 'Database connection error' });
+  });
+  module.exports = router;
+  return;
+}
+
 const { createAppointment, getAppointments, getAppointmentsByCounselor } = require('../controllers/appointmentsController');
 
 // POST /api/appointments - Create a new appointment

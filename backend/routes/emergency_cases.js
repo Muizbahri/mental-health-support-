@@ -1,6 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
+
+// Wrap database import in try-catch to prevent module loading errors
+let db;
+try {
+  db = require('../config/db');
+} catch (error) {
+  console.error('Failed to load database in emergency_cases route:', error);
+  // Export a router with error handlers
+  router.use('*', (req, res) => {
+    res.status(500).json({ success: false, message: 'Database connection error' });
+  });
+  module.exports = router;
+  return;
+}
 
 // POST /api/emergency_cases - Create a new emergency case
 router.post('/', async (req, res) => {

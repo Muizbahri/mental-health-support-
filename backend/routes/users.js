@@ -1,10 +1,36 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const db = require('../config/db');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
-const publicUsersController = require('../controllers/publicUsersController');
+
+// Wrap database import in try-catch to prevent module loading errors
+let db;
+try {
+  db = require('../config/db');
+} catch (error) {
+  console.error('Failed to load database in users route:', error);
+  // Export a router with error handlers
+  router.use('*', (req, res) => {
+    res.status(500).json({ success: false, message: 'Database connection error' });
+  });
+  module.exports = router;
+  return;
+}
+
+// Wrap controller import in try-catch to prevent module loading errors
+let publicUsersController;
+try {
+  publicUsersController = require('../controllers/publicUsersController');
+} catch (error) {
+  console.error('Failed to load publicUsersController:', error);
+  // Export a router with error handlers
+  router.use('*', (req, res) => {
+    res.status(500).json({ success: false, message: 'Controller loading error' });
+  });
+  module.exports = router;
+  return;
+}
 
 // Storage config
 const storage = multer.diskStorage({
@@ -165,14 +191,15 @@ router.put('/update-psychiatrist/:id', upload.fields([
 });
 
 // Public User Login
-router.post('/login', publicUsersController.login);
+router.post('/login', publicUsersController.loginPublicUser);
 
 // Route for profile image upload
 router.post('/user-public/upload-profile-image', upload.single('profile_image'), async (req, res) => {
   const token = req.headers.authorization.split(' ')[1];
   if (!token) return res.status(401).json({ success: false, message: 'No token provided' });
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key';
+    const decoded = jwt.verify(token, jwtSecret);
     const userId = decoded.id;
     const filename = req.file.filename;
     await db.query('UPDATE user_public SET profile_image = ? WHERE id = ?', [filename, userId]);
@@ -200,7 +227,8 @@ router.get('/user-public/profile', async (req, res) => {
   if (!authHeader) return res.status(401).json({ success: false, message: 'No token provided' });
   const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key';
+    const decoded = jwt.verify(token, jwtSecret);
     const { id, email } = req.query;
     if (!id && !email) return res.status(400).json({ success: false, message: 'Missing id or email' });
     const [results] = await db.query('SELECT * FROM user_public WHERE id = ? OR email = ?', [id || null, email || null]);

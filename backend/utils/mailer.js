@@ -2,11 +2,11 @@ const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const transporter = nodemailer.createTransport({
-  host: process.env.MAIL_HOST,
-  port: process.env.MAIL_PORT,
+  host: process.env.MAIL_HOST || 'smtp.gmail.com',
+  port: process.env.MAIL_PORT || 587,
   auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS,
+    user: process.env.MAIL_USER || 'default@example.com',
+    pass: process.env.MAIL_PASS || 'default-password',
   },
 });
 

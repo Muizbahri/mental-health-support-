@@ -1,4 +1,27 @@
-const db = require('../config/db');
+let db;
+try {
+  db = require('../config/db');
+} catch (error) {
+  console.error('Failed to load database in counselorsController:', error);
+  // Export error handlers
+  exports.getCounselors = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  exports.getCounselorById = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  exports.createCounselor = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  exports.updateCounselor = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  exports.deleteCounselor = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  return;
+}
+
 const counselorsModel = require('../models/counselors');
 
 exports.getCounselors = async (req, res) => {

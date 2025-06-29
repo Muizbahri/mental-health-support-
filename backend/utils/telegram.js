@@ -2,7 +2,7 @@ const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
 const fetch = require('node-fetch');
 
-const token = process.env.TELEGRAM_BOT_TOKEN;
+const token = process.env.TELEGRAM_BOT_TOKEN || 'fallback-token';
 
 // Only start polling if this file is run directly (not imported)
 let bot;
@@ -880,7 +880,7 @@ async function sendTelegramMessage(chatId, text) {
   }
 }
 
-const db = require('../models/db');
+const db = require('../config/db');
 
 async function findNearestProfessionals(lat, lng) {
   // Search psychiatrists

@@ -1,4 +1,27 @@
-const db = require('../config/db');
+let db;
+try {
+  db = require('../config/db');
+} catch (error) {
+  console.error('Failed to load database in psychiatristsController:', error);
+  // Export error handlers
+  exports.getPsychiatrists = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  exports.getPsychiatristById = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  exports.createPsychiatrist = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  exports.updatePsychiatrist = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  exports.deletePsychiatrist = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  return;
+}
+
 const psychiatristsModel = require('../models/psychiatrists');
 
 exports.getPsychiatrists = async (req, res) => {

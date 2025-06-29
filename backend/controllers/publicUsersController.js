@@ -1,4 +1,19 @@
-const db = require('../models/db');
+// Wrap database import in try-catch to prevent module loading errors
+let db;
+try {
+  db = require('../config/db');
+} catch (error) {
+  console.error('Failed to load database in publicUsersController:', error);
+  // Export error handlers
+  exports.getAllPublicUsers = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  exports.loginPublicUser = async (req, res) => {
+    res.status(500).json({ success: false, error: 'Database connection error' });
+  };
+  return;
+}
+
 const jwt = require('jsonwebtoken');
 
 exports.getAllPublicUsers = async (req, res) => {
@@ -43,14 +58,15 @@ exports.loginPublicUser = async (req, res) => {
       });
     }
 
-    // Generate JWT token
+    // Generate JWT token with fallback for JWT_SECRET
+    const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key';
     const token = jwt.sign(
       { 
         id: user.id, 
         email: user.email, 
         role: 'public' 
       }, 
-      process.env.JWT_SECRET, 
+      jwtSecret, 
       { expiresIn: '1d' }
     );
 
