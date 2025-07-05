@@ -106,8 +106,15 @@ export default function MapComponent({
   
   const bounds = routeCoords && routeCoords.length > 0 ? L.latLngBounds(routeCoords) : null;
 
-  // TEMP: Log the env key for debugging
-  console.log("Geoapify Key:", process.env.NEXT_PUBLIC_GEOAPIFY_KEY);
+  // Get API key from environment variable
+  const apiKey = process.env.NEXT_PUBLIC_GEOAPIFY_KEY || 'f11e9d96b2ce4799bb35938168cfc842';
+  
+  // Debug logging for production
+  useEffect(() => {
+    console.log("MapComponent - API Key available:", !!apiKey);
+    console.log("MapComponent - User Location:", userLocation);
+    console.log("MapComponent - Route Coords:", routeCoords?.length || 0, "points");
+  }, [apiKey, userLocation, routeCoords]);
 
   return (
     <div className="rounded-lg overflow-hidden" style={{ height: "100%", width: "100%" }}>
@@ -119,12 +126,26 @@ export default function MapComponent({
           scrollWheelZoom={true}
         >
           <TileLayer
-            url="https://maps.geoapify.com/v1/tile/osm-bright/{z}/{x}/{y}.png?apiKey=f11e9d96b2ce4799bb35938168cfc842"
+            url={`https://maps.geoapify.com/v1/tile/osm-bright/{z}/{x}/{y}.png?apiKey=${apiKey}`}
             attribution='&copy; <a href="https://www.geoapify.com/">Geoapify</a> contributors'
           />
           
           <ChangeView center={center} zoom={15} bounds={bounds} />
           <AutoOpenPopup selectedProfessional={selectedProfessional} />
+
+          {/* User location marker */}
+          {userLocation && (
+            <Marker position={[userLocation.lat, userLocation.lon]} icon={defaultIcon}>
+              <Popup>
+                <div className="text-center">
+                  <b className="text-lg">Your Location</b><br />
+                  <span className="text-sm text-gray-600">
+                    {userLocation.lat.toFixed(4)}, {userLocation.lon.toFixed(4)}
+                  </span>
+                </div>
+              </Popup>
+            </Marker>
+          )}
 
           {/* Markers for all professionals */}
           {professionals.map((pro) =>
@@ -153,12 +174,13 @@ export default function MapComponent({
           
           {/* Polyline for the route */}
           {routeCoords && routeCoords.length > 0 && (
-            <>
-              <Polyline positions={routeCoords} color="blue" weight={5} />
-              <Marker position={routeCoords[0]} icon={defaultIcon}>
-                <Popup>Your Location</Popup>
-              </Marker>
-            </>
+            <Polyline 
+              positions={routeCoords} 
+              color="#2563eb" 
+              weight={4} 
+              opacity={0.8}
+              dashArray="10, 10"
+            />
           )}
 
         </MapContainer>
