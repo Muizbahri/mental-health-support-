@@ -294,7 +294,7 @@ export default function FindLocationPage() {
             )}
             
             {/* Debug/Test Controls - Only show in development or when testing */}
-            {(process.env.NODE_ENV === 'development' || window.location.search.includes('debug=true')) && (
+            {process.env.NODE_ENV === 'development' && (
               <div className="mt-4 flex justify-center gap-2">
                 <button
                   onClick={() => window.testGeoapifyAPI?.()}
