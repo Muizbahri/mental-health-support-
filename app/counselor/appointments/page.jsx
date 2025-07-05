@@ -19,22 +19,42 @@ export default function CounselorAppointmentsPage() {
     const user = JSON.parse(localStorage.getItem("counselorUser"));
     userRef.current = user;
     if (!user) return;
-    // Use full name for assigned_to filtering
-    fetchAppointments(user.full_name);
+    fetchAppointments();
   }, []);
 
-  function fetchAppointments(assignedTo) {
+  function fetchAppointments() {
     setLoading(true);
-    fetch(`http://194.164.148.171:5000/api/appointments/counselor/${encodeURIComponent(assignedTo)}`)
-      .then(res => res.json())
+    const baseUrl = window.location.origin;
+    const token = localStorage.getItem("counselorToken");
+    fetch(`${baseUrl}/api/appointments/protected`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+      })
       .then(data => {
-        setAppointments((data.success ? data.data : []).map(a => ({
+        const user = userRef.current;
+        console.log('Counselor user:', user);
+        console.log('Fetched appointments response:', data);
+        
+        // Backend already filters by counselor_id, no need for frontend filtering
+        const appointments = data.success ? (data.data || []) : [];
+        console.log('Appointments for counselor:', appointments);
+        
+        setAppointments(appointments.map(a => ({
           ...a,
           contact: a.contact || a.patient_email
         })));
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(error => {
+        console.error('Error fetching appointments:', error);
+        setAppointments([]);
+        setLoading(false);
+      });
   }
 
   function openCreateModal() {
@@ -76,35 +96,42 @@ export default function CounselorAppointmentsPage() {
       contact: form.contact,
       assigned_to: user.full_name,
       status: form.status,
-      date_time: form.date + (form.time ? ` ${form.time}` : "")
+      date_time: form.date + (form.time ? ` ${form.time}` : ""),
+      created_by: user.email
     };
-    let url = "http://194.164.148.171:5000/api/appointments";
+    let url = "/api/appointments/protected";
     let method = "POST";
     if (modalMode === "edit" && current) {
-      url = `http://194.164.148.171:5000/api/appointments/${current.id}`;
+      url = `/api/appointments/protected/${current.id}`;
       method = "PUT";
     }
+    const token = localStorage.getItem("counselorToken");
     const res = await fetch(url, {
       method,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", 'Authorization': `Bearer ${token}` },
       body: JSON.stringify(payload)
     });
     if (res.ok) {
-      fetchAppointments(user.full_name);
+      fetchAppointments();
       closeModal();
     } else {
-      alert("Failed to save appointment.");
+      const errorData = await res.json().catch(() => ({ message: 'Unknown error' }));
+      console.error('Error saving appointment:', errorData);
+      alert(`Failed to save appointment: ${errorData.message || 'Unknown error'}`);
     }
   }
 
   async function handleDelete(id) {
     if (!window.confirm("Are you sure you want to delete this appointment?")) return;
     setDeletingId(id);
-    const res = await fetch(`http://194.164.148.171:5000/api/appointments/${id}`, { method: "DELETE" });
+    const token = localStorage.getItem("counselorToken");
+    const res = await fetch(`/api/appointments/protected/${id}`, { method: "DELETE", headers: { 'Authorization': `Bearer ${token}` } });
     if (res.ok) {
       setAppointments(appts => appts.filter(a => a.id !== id));
     } else {
-      alert("Failed to delete appointment.");
+      const errorData = await res.json().catch(() => ({ message: 'Unknown error' }));
+      console.error('Error deleting appointment:', errorData);
+      alert(`Failed to delete appointment: ${errorData.message || 'Unknown error'}`);
     }
     setDeletingId(null);
   }
@@ -122,9 +149,9 @@ export default function CounselorAppointmentsPage() {
   });
 
   return (
-    <div className="min-h-screen flex bg-[#f7fafc]">
+    <div className="min-h-screen w-full flex bg-white">
       <CounselorSidebar activePage="APPOINTMENTS" />
-      <main className="flex-1 p-8">
+      <main className="flex-1 w-full p-4 sm:p-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900">Appointments</h2>
           <button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg shadow transition">+ New Appointment</button>
@@ -198,7 +225,7 @@ export default function CounselorAppointmentsPage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block font-bold mb-1 text-black">Date</label>
-                  <input type="date" name="date" value={form.date} onChange={handleFormChange} required className="w-full px-3 py-2 border rounded-lg text-black placeholder-gray-400" />
+                  <input type="date" name="date" value={form.date} onChange={handleFormChange} required className="w-full px-3 py-2 border rounded-lg text-black placeholder-gray-400" min={new Date().toISOString().slice(0, 10)} />
                 </div>
                 <div>
                   <label className="block font-bold mb-1 text-black">Time</label>

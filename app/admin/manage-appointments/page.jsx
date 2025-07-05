@@ -3,6 +3,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Home, Users, BookOpen, MessageCircle, AlertTriangle, LogOut, Calendar, User, FileText, CheckSquare, X } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
+import AdminSidebar from '../Sidebar';
 
 const sidebarMenu = [
   { icon: <Home size={20} />, label: "Dashboard", path: "/admin/dashboard" },
@@ -57,6 +58,7 @@ function NewAppointmentModal({ isOpen, onClose, onAdd, loading }) {
     assigned_to: "",
     status: "",
     date_time: "",
+    contact: "",
   });
   const [error, setError] = useState("");
   const [professionals, setProfessionals] = useState({ counselors: [], psychiatrists: [] });
@@ -85,15 +87,30 @@ function NewAppointmentModal({ isOpen, onClose, onAdd, loading }) {
       setError("All fields are required.");
       return;
     }
+    // Validate date/time is at least 1 hour in the future
+    const selected = new Date(formData.date_time);
+    const now = new Date();
+    if (selected - now < 60 * 60 * 1000) {
+      setError("Appointment must be at least 1 hour from now.");
+      return;
+    }
     setError("");
-    // Convert to MySQL format before sending
-    const sendData = { ...formData, date_time: formatMySQLDateTime(formData.date_time) };
+    let sendData = { ...formData, date_time: formatMySQLDateTime(formData.date_time) };
+    if (formData.role === 'Psychiatrist') {
+      const selectedPsych = professionals.psychiatrists.find(p => p.full_name === formData.assigned_to);
+      if (selectedPsych) {
+        sendData.assigned_to = selectedPsych.full_name;
+        sendData.psychiatrist_id = selectedPsych.id;
+      }
+      const admin = JSON.parse(localStorage.getItem('adminUser') || '{}');
+      if (admin && admin.email) sendData.created_by = admin.email;
+    }
     onAdd(sendData, setError);
   };
 
   useEffect(() => {
     if (!isOpen) {
-      setFormData({ role: "", name_patient: "", assigned_to: "", status: "", date_time: "" });
+      setFormData({ role: "", name_patient: "", assigned_to: "", status: "", date_time: "", contact: "" });
       setError("");
     }
   }, [isOpen]);
@@ -102,17 +119,17 @@ function NewAppointmentModal({ isOpen, onClose, onAdd, loading }) {
 
   return (
     <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md mx-4">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-semibold text-gray-900">New Appointment</h2>
+      <div className="bg-white rounded-xl shadow-2xl p-4 w-full max-w-xs sm:max-w-sm mx-2" style={{ minWidth: 0 }}>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">New Appointment</h2>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 transition p-1 hover:bg-gray-100 rounded-full"
           >
-            <X size={24} />
+            <X size={20} color="#000" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Select Role</label>
             <select
@@ -147,9 +164,22 @@ function NewAppointmentModal({ isOpen, onClose, onAdd, loading }) {
               disabled={!formData.role}
             >
               <option value="">Select a professional</option>
-              {(formData.role === 'Counselor' ? professionals.counselors : professionals.psychiatrists).map(p => (
-                <option key={p.id} value={p.full_name} className="font-semibold text-gray-800">{p.full_name}</option>
-              ))}
+              {(formData.role === 'Counselor' ? professionals.counselors : professionals.psychiatrists).map(p => {
+                // Get the registration number based on the professional type
+                const regNumber = formData.role === 'Counselor' 
+                  ? p.registration_number || 'N/A' 
+                  : p.med_number || 'N/A';
+                
+                // Get the address, with fallback
+                const address = p.address || p.location || 'N/A';
+                
+                // Format the display text
+                const displayText = `${p.full_name} (Reg: ${regNumber}, Address: ${address})`;
+                
+                return (
+                  <option key={p.id} value={p.full_name} className="font-semibold text-gray-800">{displayText}</option>
+                );
+              })}
             </select>
           </div>
           <div>
@@ -172,23 +202,39 @@ function NewAppointmentModal({ isOpen, onClose, onAdd, loading }) {
               type="datetime-local"
               required
               value={formData.date_time}
+              min={(() => {
+                const now = new Date();
+                now.setMinutes(now.getMinutes() + 60); // 1 hour ahead
+                return now.toISOString().slice(0, 16);
+              })()}
               onChange={(e) => setFormData({ ...formData, date_time: e.target.value })}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-2">Contact</label>
+            <input
+              type="text"
+              required
+              value={formData.contact || ''}
+              onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
+              placeholder="Enter patient contact"
+            />
+          </div>
           {error && <div className="text-red-600 text-sm font-medium">{error}</div>}
-          <div className="flex justify-end gap-4 pt-6">
+          <div className="flex justify-end gap-2 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-900 hover:bg-gray-50 transition font-medium focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-900 hover:bg-gray-50 transition font-medium focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               disabled={loading}
             >
               {loading ? "Adding..." : "Add"}
@@ -206,8 +252,10 @@ function EditAppointmentModal({ open, appointment, loading, error, onClose, onSa
     name_patient: appointment?.name_patient || '',
     assigned_to: appointment?.assigned_to || '',
     status: appointment?.status || '',
-    date_time: appointment?.date_time ? appointment.date_time.replace(' ', 'T').slice(0, 16) : '',
+    date_time: appointment?.date_time ? appointment.date_time.replace(' ', 'T') : '',
+    contact: appointment?.contact || '',
   });
+  const [localError, setLocalError] = useState('');
   const [professionals, setProfessionals] = useState({ counselors: [], psychiatrists: [] });
 
   useEffect(() => {
@@ -231,12 +279,14 @@ function EditAppointmentModal({ open, appointment, loading, error, onClose, onSa
   useEffect(() => {
     if (appointment) {
       setFormData({
-        role: appointment.role,
-        name_patient: appointment.name_patient,
-        assigned_to: appointment.assigned_to,
-        status: appointment.status,
-        date_time: appointment.date_time ? appointment.date_time.replace(' ', 'T').slice(0, 16) : '',
+        role: appointment.role || '',
+        name_patient: appointment.name_patient || '',
+        assigned_to: appointment.assigned_to || '',
+        status: appointment.status || '',
+        date_time: appointment.date_time ? appointment.date_time.replace(' ', 'T') : '',
+        contact: appointment.contact || '',
       });
+      setLocalError('');
     }
   }, [appointment]);
 
@@ -245,29 +295,42 @@ function EditAppointmentModal({ open, appointment, loading, error, onClose, onSa
   };
 
   function handleChange(e) {
-    setFormData(f => ({ ...f, [e.target.name]: e.target.value }));
+    setFormData(f => ({ ...f, [e.target.name || e.target.getAttribute('name') || e.target.id]: e.target.value }));
   }
+
   function handleSubmit(e) {
     e.preventDefault();
-    if (!formData.role || !formData.name_patient || !formData.assigned_to || !formData.status || !formData.date_time) {
-      return onSave(null, 'All fields are required.');
+    if (!formData.role || !formData.name_patient || !formData.assigned_to || !formData.status || !formData.date_time || !formData.contact) {
+      setLocalError('All fields are required.');
+      return;
     }
+    setLocalError('');
     // Convert to MySQL format
     const sendData = { ...formData, date_time: formatMySQLDateTime(formData.date_time) };
     onSave(sendData);
   }
   if (!open) return null;
   return (
-    <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md mx-4">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-semibold text-gray-900">Edit Appointment</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 transition p-1 hover:bg-gray-100 rounded-full"><X size={24} /></button>
+    <div className={`fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 ${!open ? 'hidden' : ''}`}>
+      <div className="bg-white rounded-xl shadow-2xl p-4 w-full max-w-xs sm:max-w-sm mx-2" style={{ minWidth: 0 }}>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">Edit Appointment</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 transition p-1 hover:bg-gray-100 rounded-full"
+          >
+            <X size={20} color="#000" />
+          </button>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Select Role</label>
-            <select name="role" required value={formData.role} onChange={handleRoleChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500">
+            <select
+              required
+              value={formData.role}
+              onChange={handleRoleChange}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
+            >
               <option value="" className="text-gray-500">Select a role</option>
               <option value="Psychiatrist" className="text-gray-900">Psychiatrist</option>
               <option value="Counselor" className="text-gray-900">Counselor</option>
@@ -275,27 +338,66 @@ function EditAppointmentModal({ open, appointment, loading, error, onClose, onSa
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Name (Patient)</label>
-            <input name="name_patient" type="text" required value={formData.name_patient} onChange={handleChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500" placeholder="Enter patient name" />
+            <input
+              type="text"
+              name="name_patient"
+              required
+              value={formData.name_patient}
+              onChange={handleChange}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
+              placeholder="Enter patient name"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-2">Contact</label>
+            <input
+              type="text"
+              name="contact"
+              required
+              value={formData.contact}
+              onChange={handleChange}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
+              placeholder="Enter patient contact"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Assigned To</label>
             <select
-              name="assigned_to"
               required
+              name="assigned_to"
               value={formData.assigned_to}
               onChange={handleChange}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
               disabled={!formData.role}
             >
               <option value="">Select a professional</option>
-              {(formData.role === 'Counselor' ? professionals.counselors : professionals.psychiatrists).map(p => (
-                <option key={p.id} value={p.full_name} className="font-semibold text-gray-800">{p.full_name}</option>
-              ))}
+              {(formData.role === 'Counselor' ? professionals.counselors : professionals.psychiatrists).map(p => {
+                // Get the registration number based on the professional type
+                const regNumber = formData.role === 'Counselor' 
+                  ? p.registration_number || 'N/A' 
+                  : p.med_number || 'N/A';
+                
+                // Get the address, with fallback
+                const address = p.address || p.location || 'N/A';
+                
+                // Format the display text
+                const displayText = `${p.full_name} (Reg: ${regNumber}, Address: ${address})`;
+                
+                return (
+                  <option key={p.id} value={p.full_name} className="font-semibold text-gray-800">{displayText}</option>
+                );
+              })}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Status</label>
-            <select name="status" required value={formData.status} onChange={handleChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500">
+            <select
+              required
+              name="status"
+              value={formData.status}
+              onChange={handleChange}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
+            >
               <option value="" className="text-gray-500">Select status</option>
               <option value="Resolved" className="text-gray-900">Resolved</option>
               <option value="In Progress" className="text-gray-900">In Progress</option>
@@ -304,9 +406,16 @@ function EditAppointmentModal({ open, appointment, loading, error, onClose, onSa
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Date/Time</label>
-            <input name="date_time" type="datetime-local" required value={formData.date_time} onChange={handleChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500" />
+            <input
+              type="datetime-local"
+              name="date_time"
+              required
+              value={formData.date_time}
+              onChange={handleChange}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
+            />
           </div>
-          {error && <div className="text-red-600 text-sm font-medium">{error}</div>}
+          {(localError || error) && <div className="text-red-600 text-sm font-medium">{localError || error}</div>}
           <div className="flex justify-end gap-4 pt-6">
             <button type="button" onClick={onClose} className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-900 hover:bg-gray-50 transition font-medium focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2" disabled={loading}>Cancel</button>
             <button type="submit" className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" disabled={loading}>{loading ? "Saving..." : "Save"}</button>
@@ -345,49 +454,103 @@ export default function ManageAppointmentsPage() {
   async function handleEditSave(updatedData) {
     setEditModal((m) => ({ ...m, loading: true, error: '' }));
     try {
-      const res = await fetch(`http://194.164.148.171:5000/api/appointments/${editModal.appointment.id}`, {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`${API_BASE}/protected/${editModal.appointment.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({...updatedData, assigned_to: updatedData.assigned_to}),
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(updatedData),
       });
       const data = await res.json();
       if (data.success) {
         closeEditModal();
-        fetchAppointments();
+        setSuccessMsg('Appointment updated successfully.');
+        fetchAppointmentsAndSet();
       } else {
         setEditModal((m) => ({ ...m, error: data.message || 'Failed to update appointment.' }));
       }
     } catch (err) {
+      console.error('Error updating appointment:', err);
       setEditModal((m) => ({ ...m, error: 'Failed to update appointment.' }));
     }
     setEditModal((m) => ({ ...m, loading: false }));
   }
 
-  // Fetch appointments from backend
-  const fetchAppointments = async () => {
+  // API endpoints
+  const API_BASE = '/api/appointments';
+
+  // Fetch all appointments and update state
+  async function fetchAppointmentsAndSet() {
     setFetching(true);
     setFetchError("");
     try {
-      const res = await fetch("http://194.164.148.171:5000/api/appointments");
-      const data = await res.json();
-      if (data.success) {
-        setAppointments(data.data);
-      } else {
-        setFetchError("Failed to load appointments.");
-      }
+      const token = localStorage.getItem('adminToken');
+      // Fetch both counselor appointments (from protected route) and psychiatrist appointments
+      const [res1, res2] = await Promise.all([
+        fetch(`${API_BASE}/protected`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/psychiatrist`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+      
+      // Handle responses individually to avoid failing if one table is empty
+      let counselorAppointments = [];
+      let psychiatristAppointments = [];
+      
+             if (res1.ok) {
+      const data1 = await res1.json();
+         counselorAppointments = (data1.data || []).map(a => ({ 
+           ...a, 
+           role: a.role || 'Counselor' // Ensure role is set, default to Counselor
+         }));
+       } else {
+         console.warn('Failed to fetch counselor appointments:', res1.status, res1.statusText);
+       }
+       
+       if (res2.ok) {
+      const data2 = await res2.json();
+         psychiatristAppointments = (data2.data || []).map(a => ({ 
+           ...a, 
+           role: a.role || 'Psychiatrist' // Ensure role is set, default to Psychiatrist
+         }));
+       } else {
+         console.warn('Failed to fetch psychiatrist appointments:', res2.status, res2.statusText);
+       }
+      
+             // Merge all appointments
+       const all = [...counselorAppointments, ...psychiatristAppointments];
+      setAppointments(all);
+       
+       console.log('Fetched appointments:', {
+         counselorCount: counselorAppointments.length,
+         psychiatristCount: psychiatristAppointments.length,
+         totalCount: all.length,
+         counselorSample: counselorAppointments.slice(0, 2),
+         psychiatristSample: psychiatristAppointments.slice(0, 2)
+       });
+       
+       // Only show error if both requests failed
+       if (!res1.ok && !res2.ok) {
+         throw new Error('Failed to fetch any appointments');
+       }
     } catch (err) {
+      console.error('Error fetching appointments:', err);
       setFetchError("Failed to load appointments.");
     }
     setFetching(false);
-  };
+  }
 
   useEffect(() => {
-    fetchAppointments();
+    fetchAppointmentsAndSet();
   }, []);
 
   // Filter appointments by role
   const psychiatristAppointments = appointments.filter(apt => apt.role === "Psychiatrist");
   const counselorAppointments = appointments.filter(apt => apt.role === "Counselor");
+  
+  console.log('Filtered appointments for display:', {
+    totalAppointments: appointments.length,
+    psychiatristFiltered: psychiatristAppointments.length,
+    counselorFiltered: counselorAppointments.length,
+    sampleRoles: appointments.slice(0, 3).map(a => ({ id: a.id, role: a.role, name: a.name_patient }))
+  });
 
   // Add appointment via backend
   const handleAddAppointment = async (formData, setError) => {
@@ -395,20 +558,22 @@ export default function ManageAppointmentsPage() {
     setError && setError("");
     setSuccessMsg("");
     try {
-      const res = await fetch("http://194.164.148.171:5000/api/appointments", {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`${API_BASE}/protected`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({...formData, assigned_to: formData.assigned_to}),
+        headers: { "Content-Type": "application/json", 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(formData),
       });
       const data = await res.json();
-      if (data.success) {
+      if (data.success || data.message === 'Appointment created' || data.message === 'Psychiatrist appointment created') {
         setIsModalOpen(false);
         setSuccessMsg("Appointment added successfully.");
-        fetchAppointments();
+        fetchAppointmentsAndSet();
       } else {
         setError && setError(data.message || "Failed to add appointment.");
       }
     } catch (err) {
+      console.error('Error adding appointment:', err);
       setError && setError("Failed to add appointment.");
     }
     setLoading(false);
@@ -418,56 +583,24 @@ export default function ManageAppointmentsPage() {
     if (!window.confirm("Are you sure you want to delete this appointment?")) return;
     setDeleteError("");
     try {
-      const res = await fetch(`http://194.164.148.171:5000/api/appointments/${id}`, { method: 'DELETE' });
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`${API_BASE}/protected/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
       const data = await res.json();
       if (data.success) {
-        fetchAppointments();
+        fetchAppointmentsAndSet();
       } else {
         setDeleteError(data.message || "Failed to delete appointment.");
       }
     } catch (err) {
+      console.error('Error deleting appointment:', err);
       setDeleteError("Failed to delete appointment.");
     }
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex">
-      {/* Sidebar */}
-      <aside className="w-56 bg-white rounded-xl shadow-lg m-4 flex flex-col p-4 justify-between">
-        <div>
-          <div className="flex items-center mb-6">
-            <Image src="/brain-logo.png" width={32} height={32} alt="Logo" className="mr-2" />
-            <span className="font-semibold text-lg text-gray-700">MENTAL HEALTH CARE</span>
-          </div>
-          <nav>
-            <ul className="space-y-1">
-              {sidebarMenu.map((item) => (
-                <li key={item.label}>
-                  <button
-                    className={`flex items-center w-full px-4 py-2 rounded-lg text-gray-700 hover:bg-blue-50 transition font-medium ${pathname === item.path ? 'bg-blue-50' : ''}`}
-                    onClick={() => router.push(item.path)}
-                  >
-                    {item.icon}
-                    <span className="ml-3">{item.label}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </div>
-        <button
-          className="flex items-center gap-2 mt-8 px-4 py-2 rounded-lg text-red-600 hover:bg-red-50 font-medium transition"
-          onClick={() => {
-            localStorage.removeItem('adminToken');
-            router.push('/admin/login');
-          }}
-        >
-          <LogOut size={20} />
-          Log Out
-        </button>
-      </aside>
-      {/* Main Content */}
-      <main className="flex-1 p-8 space-y-8">
+    <div className="min-h-screen w-full bg-white flex">
+      <AdminSidebar />
+      <main className="flex-1 w-full p-4 sm:p-8 space-y-8">
         <h1 className="font-bold text-3xl mb-6 text-gray-900">Manage Appointments</h1>
         {successMsg && <div className="mb-4 text-green-700 bg-green-100 px-4 py-2 rounded-lg font-medium">{successMsg}</div>}
         {fetchError && <div className="mb-4 text-red-700 bg-red-100 px-4 py-2 rounded-lg font-medium">{fetchError}</div>}
@@ -499,15 +632,25 @@ export default function ManageAppointmentsPage() {
                 <tr className="bg-neutral-50">
                   <th className="py-2 px-3 text-left font-semibold text-gray-800">Date/Time</th>
                   <th className="py-2 px-3 text-left font-semibold text-gray-800">Name (Patient)</th>
+                  <th className="py-2 px-3 text-left font-semibold text-gray-800">Contact</th>
                   <th className="py-2 px-3 text-left font-semibold text-gray-800">Assigned To</th>
                   <th className="py-2 px-3 text-left font-semibold text-gray-800">Status</th>
                   <th className="py-2 px-3 text-center font-semibold text-gray-800">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {psychiatristAppointments.length === 0 ? (
+                {fetching ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-8">
+                    <td colSpan={6} className="text-center py-8">
+                      <div className="flex flex-col items-center text-gray-500">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
+                        <p className="text-sm font-medium">Loading psychiatrist appointments...</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : psychiatristAppointments.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-8">
                       <div className="flex flex-col items-center text-gray-500">
                         <Calendar size={48} className="mb-2 text-gray-400" />
                         <p className="text-sm font-medium">No psychiatrist appointments found</p>
@@ -519,6 +662,7 @@ export default function ManageAppointmentsPage() {
                   <tr key={row.id} className="border-b last:border-b-0 hover:bg-gray-50 transition">
                     <td className="py-2 px-3 text-gray-800">{formatDisplayDateTime(row.date_time)}</td>
                     <td className="py-2 px-3 text-gray-800">{row.name_patient}</td>
+                    <td className="py-2 px-3 text-gray-800">{row.contact}</td>
                     <td className="py-2 px-3 text-gray-800">{row.assigned_to}</td>
                     <td className="py-2 px-3 text-gray-800">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -568,15 +712,25 @@ export default function ManageAppointmentsPage() {
                 <tr className="bg-neutral-50">
                   <th className="py-2 px-3 text-left font-semibold text-gray-800">Date/Time</th>
                   <th className="py-2 px-3 text-left font-semibold text-gray-800">Name (Patient)</th>
+                  <th className="py-2 px-3 text-left font-semibold text-gray-800">Contact</th>
                   <th className="py-2 px-3 text-left font-semibold text-gray-800">Assigned To</th>
                   <th className="py-2 px-3 text-left font-semibold text-gray-800">Status</th>
                   <th className="py-2 px-3 text-center font-semibold text-gray-800">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {counselorAppointments.length === 0 ? (
+                {fetching ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-8">
+                    <td colSpan={6} className="text-center py-8">
+                      <div className="flex flex-col items-center text-gray-500">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
+                        <p className="text-sm font-medium">Loading counselor appointments...</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : counselorAppointments.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-8">
                       <div className="flex flex-col items-center text-gray-500">
                         <Calendar size={48} className="mb-2 text-gray-400" />
                         <p className="text-sm font-medium">No counselor appointments found</p>
@@ -588,6 +742,7 @@ export default function ManageAppointmentsPage() {
                   <tr key={row.id} className="border-b last:border-b-0 hover:bg-gray-50 transition">
                     <td className="py-2 px-3 text-gray-800">{formatDisplayDateTime(row.date_time)}</td>
                     <td className="py-2 px-3 text-gray-800">{row.name_patient}</td>
+                    <td className="py-2 px-3 text-gray-800">{row.contact}</td>
                     <td className="py-2 px-3 text-gray-800">{row.assigned_to}</td>
                     <td className="py-2 px-3 text-gray-800">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${

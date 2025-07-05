@@ -1,5 +1,5 @@
 "use client";
-import { ClipboardList, Heart, Smile, FileText, Calendar, MessageCircle, User, UserCircle, LogOut, Hospital } from "lucide-react";
+import { ClipboardList, Heart, Smile, FileText, Calendar, MessageCircle, User, UserCircle, LogOut, Hospital, Menu, X } from "lucide-react";
 import Sidebar from "../Sidebar";
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
@@ -24,6 +24,7 @@ const assessments = [
 export default function SelfAssessmentPage() {
   const router = useRouter();
   const [history, setHistory] = useState([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const stored = JSON.parse(sessionStorage.getItem('assessmentHistory')) || [];
@@ -47,10 +48,38 @@ export default function SelfAssessmentPage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      <Sidebar activePage="SELF-ASSESSMENT" />
+    <div className="min-h-screen flex bg-gray-50 relative">
+      {/* Hamburger menu for mobile */}
+      <button
+        className="md:hidden fixed top-4 left-4 z-40 bg-white rounded-full p-2 shadow-lg border border-gray-200"
+        onClick={() => setSidebarOpen(true)}
+        aria-label="Open menu"
+      >
+        <Menu size={28} color="#000" />
+      </button>
+      {/* Sidebar as drawer on mobile, static on desktop */}
+      <div>
+        {/* Mobile Drawer */}
+        <div
+          className={`fixed inset-0 z-50 bg-black/30 transition-opacity duration-200 ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'} md:hidden`}
+          onClick={() => setSidebarOpen(false)}
+        />
+        <aside
+          className={`fixed top-0 left-0 z-50 h-full w-64 bg-white shadow-lg transform transition-transform duration-200 md:static md:translate-x-0 md:block ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:min-h-screen`}
+        >
+          {/* Close button for mobile */}
+          <button
+            className="md:hidden absolute top-4 right-4 z-50 bg-gray-100 rounded-full p-1 border border-gray-300"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close menu"
+          >
+            <X size={24} color="#000" />
+          </button>
+          <Sidebar activePage="SELF-ASSESSMENT" />
+        </aside>
+      </div>
       {/* Main Content */}
-      <main className="flex-1 p-10">
+      <main className="flex-1 p-4 sm:p-6 md:p-10 transition-all duration-200">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Self-Assessment</h1>
         <p className="text-gray-600 mb-8 text-lg">Take these standardized assessments to better understand your mental health and get personalized recommendations.</p>
         {/* Assessment Cards */}

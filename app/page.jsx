@@ -1,7 +1,7 @@
 "use client";
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 
 export default function Home() {
   const router = useRouter();
@@ -81,40 +81,10 @@ export default function Home() {
           <span className="text-sm text-gray-500">Scan to Chat!<br/>24/7 support and guidance</span>
         </div>
         {/* NGO Activity Submission */}
-        <div className="flex-1 max-w-xl w-full bg-white rounded-2xl shadow-lg p-8">
+        <div className="flex-1 max-w-2xl w-full bg-white rounded-2xl shadow-lg p-8">
           <h3 className="text-xl font-bold mb-2 text-gray-900">NGO Activity Submission</h3>
           <p className="text-gray-600 mb-4">Submit your NGO's mental health activities and events to be featured on our platform.</p>
-          <form className="space-y-4">
-            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded text-sm text-gray-700 mb-2">
-              <b>Important:</b> NGOs must provide valid registration proof. Submissions without this will not be approved.
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input label="NGO Name" required dark />
-              <Input label="NGO Registration Number" required dark />
-              <Input label="Contact Person Name" required dark />
-              <Input label="Contact Email" type="email" required dark />
-              <Input label="Contact Phone" type="tel" required dark />
-              <Input label="NGO Official Website" placeholder="https://your-ngo-website.com" dark />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1 text-gray-900">NGO Registration Proof <span className="text-red-500">*</span> (Image or PDF)</label>
-              <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="block w-full text-sm border rounded px-3 py-2 text-gray-900 placeholder-gray-700" required />
-            </div>
-            <Input label="Activity Title" required dark />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input label="Activity Date" type="date" required dark />
-              <Input label="Activity Location" required dark />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1 text-gray-900">Activity Description</label>
-              <textarea className="w-full border rounded px-3 py-2 min-h-[60px] text-gray-900 placeholder-gray-700" placeholder="Describe your mental health activity or event..." />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1 text-gray-900">Supporting Document (Optional)</label>
-              <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="block w-full text-sm border rounded px-3 py-2 text-gray-900 placeholder-gray-700" />
-            </div>
-            <button type="submit" className="w-full bg-[#6b6bce] hover:bg-[#5757b2] text-white font-semibold py-3 rounded-full shadow transition mt-2">Submit Activity</button>
-          </form>
+          <NgoActivityForm />
         </div>
       </section>
 
@@ -176,5 +146,91 @@ function Input({ label, type = 'text', required = false, placeholder = '', dark 
         className={`w-full border rounded px-3 py-2 text-sm ${dark ? 'text-gray-900 placeholder-gray-700' : ''}`}
       />
     </div>
+  );
+}
+
+function NgoActivityForm() {
+  const formRef = useRef(null);
+  const [status, setStatus] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(formRef.current);
+    setStatus("Submitting...");
+    try {
+      const res = await fetch("/api/ngo-activities", {
+        method: "POST",
+        body: formData,
+      });
+      const result = await res.json();
+      if (res.ok) {
+        setStatus("Submitted successfully!");
+        formRef.current.reset();
+      } else {
+        setStatus(result.message || "Submission failed.");
+      }
+    } catch (err) {
+      setStatus("Error submitting form.");
+    }
+  };
+
+  // Custom style for placeholder-black if not available in Tailwind
+  const placeholderBlack = {
+    '::placeholder': { color: '#000', opacity: 1 },
+  };
+
+  return (
+    <form
+      ref={formRef}
+      encType="multipart/form-data"
+      className="space-y-4"
+      onSubmit={handleSubmit}
+    >
+      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded text-sm text-black mb-2">
+        <b>Important:</b> NGOs must provide valid registration proof. Submissions without this will not be approved.
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <input name="ngo_name" placeholder="NGO Name" required className="border rounded px-3 py-2 text-black placeholder-black" style={placeholderBlack} />
+        <input name="ngo_registration_number" placeholder="NGO Registration Number" required className="border rounded px-3 py-2 text-black placeholder-black" style={placeholderBlack} />
+        <input name="contact_person_name" placeholder="Contact Person Name" required className="border rounded px-3 py-2 text-black placeholder-black" style={placeholderBlack} />
+        <input name="contact_email" type="email" placeholder="Contact Email" required className="border rounded px-3 py-2 text-black placeholder-black" style={placeholderBlack} />
+        <input name="contact_phone" placeholder="Contact Phone" required className="border rounded px-3 py-2 text-black placeholder-black" style={placeholderBlack} />
+        <input name="ngo_official_website" placeholder="NGO Official Website" className="border rounded px-3 py-2 text-black placeholder-black" style={placeholderBlack} />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1 text-black">NGO Registration Proof <span className="text-red-500">*</span> (Image or PDF)</label>
+        <input name="ngo_registration_proof" type="file" accept=".jpg,.jpeg,.png,.pdf" required className="block w-full text-sm border rounded px-3 py-2 text-black" />
+      </div>
+      <label className="block text-sm font-medium mb-1 text-black">Activity Title</label>
+      <input name="activity_title" placeholder="Activity Title" required className="border rounded px-3 py-2 w-full text-black placeholder-black" style={placeholderBlack} />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-0 -space-x-10">
+        <div>
+          <label className="block text-sm font-medium mb-1 text-black">Activity Date</label>
+          <input name="activity_date" type="date" placeholder="Activity Date" required className="border rounded px-3 py-2 text-black placeholder-black" style={placeholderBlack} />
+        </div>
+        <div className="-ml-1">
+          <label className="block text-sm font-medium mb-1 text-black">Activity Time</label>
+          <input name="activity_time" type="time" placeholder="Activity Time" required className="border rounded px-3 py-2 text-black placeholder-black" style={placeholderBlack} />
+        </div>
+        <div className="-ml-10">
+          <label className="block text-sm font-medium mb-1 text-black">Activity Location</label>
+          <input name="activity_location" placeholder="Activity Location" required className="border rounded px-3 py-2 text-black placeholder-black" style={placeholderBlack} />
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1 text-black">NGO Address <span className="text-red-500">*</span></label>
+        <input name="ngo_address" placeholder="NGO Address" required className="border rounded px-3 py-2 w-full text-black placeholder-black" style={placeholderBlack} />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1 text-black">Activity Description</label>
+        <textarea name="activity_description" placeholder="Describe your mental health activity or event..." className="w-full border rounded px-3 py-2 min-h-[60px] text-black placeholder-black" style={placeholderBlack} />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1 text-black">Supporting Document (Optional)</label>
+        <input name="supporting_document" type="file" accept=".jpg,.jpeg,.png,.pdf" className="block w-full text-sm border rounded px-3 py-2 text-black" />
+      </div>
+      <button type="submit" className="w-full bg-[#6b6bce] hover:bg-[#5757b2] text-white font-semibold py-3 rounded-full shadow transition mt-2">Submit Activity</button>
+      {status && <div className="text-center text-sm mt-2 text-black">{status}</div>}
+    </form>
   );
 } 

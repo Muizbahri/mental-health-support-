@@ -48,17 +48,36 @@ export default function CounselorFeedbackPage() {
     e.preventDefault();
     if (!type || !message.trim()) return;
     setSubmitting(true);
-    // Get user info from localStorage (simulate auth/session)
-    const user = JSON.parse(localStorage.getItem("counselorUser"));
+    
+    // Get user info from localStorage (more reliable)
+    const counselorUserData = localStorage.getItem("counselorUser");
+    let fullName = "";
+    
+    if (counselorUserData) {
+      try {
+        const user = JSON.parse(counselorUserData);
+        fullName = user?.full_name || "";
+      } catch (err) {
+        console.error("Error parsing counselor user data:", err);
+      }
+    }
+    
+    console.log('Counselor feedback submission:', {
+      user_role: "counselor",
+      full_name: fullName,
+      type_of_feedback: type,
+      feedback: message.substring(0, 50) + '...'
+    });
+    
     const feedbackData = {
       user_role: "counselor",
-      full_name: user?.full_name || "",
+      full_name: fullName,
       type_of_feedback: type,
-      feedback: message,
-      feedback_date: new Date().toISOString().slice(0, 19).replace('T', ' ')
+      feedback: message
     };
+    
     try {
-      const res = await fetch("http://194.164.148.171:5000/api/feedbacks", {
+      const res = await fetch("http://localhost:5000/api/feedbacks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(feedbackData)
@@ -71,6 +90,7 @@ export default function CounselorFeedbackPage() {
         alert("Failed to submit feedback.");
       }
     } catch (err) {
+      console.error('Counselor feedback error:', err);
       alert("Failed to submit feedback.");
     } finally {
       setSubmitting(false);

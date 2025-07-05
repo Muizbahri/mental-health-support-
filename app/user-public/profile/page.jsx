@@ -1,10 +1,10 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { User, Mail, Lock, Camera, IdCard, Phone, Calendar } from "lucide-react";
+import { User, Mail, Lock, Camera, IdCard, Phone, Calendar, Menu, X } from "lucide-react";
 import Sidebar from "../Sidebar";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://194.164.148.171:5000";
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -22,37 +22,67 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [originalUser, setOriginalUser] = useState(null);
   const fileInputRef = useRef();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("publicToken");
+    console.log("Token from localStorage:", token ? "Found" : "Not found");
+    
     if (!token) {
+      console.log("No token found, redirecting to login");
       router.push("/user-public/login");
       return;
     }
-    // Decode JWT to get user id/email (simple base64 decode, not verifying signature here)
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    const userId = payload.id;
-    const userEmail = payload.email;
-    fetch(`${BASE_URL}/api/user-public/profile?id=${userId}&email=${encodeURIComponent(userEmail)}`, {
-      headers: { Authorization: `Bearer ${token}` }
+    
+    console.log("Fetching user profile...");
+    setLoading(true);
+    setError("");
+    
+    // Try to get user data from localStorage first as a fallback
+    const storedUser = localStorage.getItem("publicUser");
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        console.log("Found user data in localStorage:", parsedUser);
+        setUser(parsedUser);
+        setOriginalUser(parsedUser);
+      } catch (e) {
+        console.error("Error parsing user data from localStorage:", e);
+      }
+    }
+    
+    // Fetch the latest user data from the server
+    fetch(`${BASE_URL}/api/public-users/profile/me`, {
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
     })
       .then(res => {
+        console.log("Profile API response status:", res.status);
         if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
+          return res.json().then(data => {
+            throw new Error(data.message || `HTTP error! status: ${res.status}`);
+          });
         }
         return res.json();
       })
       .then(data => {
-        if (data.success) {
-          setUser(data.user);
-          setOriginalUser(data.user);
+        console.log("Profile API response data:", data);
+        
+        if (data.success && data.data) {
+          setUser(data.data);
+          setOriginalUser(data.data);
+          // Update localStorage with fresh data
+          localStorage.setItem("publicUser", JSON.stringify(data.data));
         } else {
-          setError(data.message || "Failed to load user profile.");
+          throw new Error(data.message || "Failed to load user profile.");
         }
         setLoading(false);
       })
       .catch(err => {
-        setError("Failed to load user profile.");
+        console.error("Error fetching profile:", err);
+        setError(err.message || "Failed to load user profile.");
         setLoading(false);
       });
   }, [router]);
@@ -65,28 +95,39 @@ export default function ProfilePage() {
       
       // Get the token from localStorage
       const token = localStorage.getItem("publicToken");
+      console.log("Uploading profile image...");
       
       // Send the image to the server
-      fetch(`${BASE_URL}/api/users/user-public/upload-profile-image`, {
+      fetch(`${BASE_URL}/api/public-users/upload-profile-image`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
         },
         body: formData
       })
-      .then(res => res.json())
+      .then(res => {
+        console.log("Upload response status:", res.status);
+        return res.json();
+      })
       .then(data => {
+        console.log("Upload response:", data);
         if (data.success) {
           // Update the user state with the new profile image
           setUser(prevUser => ({
             ...prevUser,
             profile_image: data.filename
           }));
+          
+          // Update localStorage
+          const storedUser = JSON.parse(localStorage.getItem("publicUser") || "{}");
+          storedUser.profile_image = data.filename;
+          localStorage.setItem("publicUser", JSON.stringify(storedUser));
         } else {
           setError(data.message || "Failed to upload profile image");
         }
       })
       .catch(err => {
+        console.error("Error uploading image:", err);
         setError("Failed to upload profile image");
       });
     }
@@ -95,28 +136,111 @@ export default function ProfilePage() {
   const handleDelete = async () => {
     const confirmed = confirm("Are you sure you want to delete your account?");
     if (!confirmed) return;
-    const res = await fetch(`${BASE_URL}/api/users/user-public/delete?id=${user.id}`, {
-      method: 'DELETE'
-    });
-    if (res.ok) {
-      alert("Account deleted successfully.");
-      window.location.href = "/select-role";
-    } else {
-      alert("Failed to delete account.");
+    
+    const token = localStorage.getItem("publicToken");
+    if (!token) {
+      setError("Authentication required");
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${BASE_URL}/api/public-users/account/me`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (res.ok) {
+        // Clear local storage
+        localStorage.removeItem("publicToken");
+        localStorage.removeItem("publicUser");
+        localStorage.removeItem("full_name");
+        
+        alert("Account deleted successfully.");
+        router.push("/");
+      } else {
+        const data = await res.json();
+        alert(data.message || "Failed to delete account.");
+      }
+    } catch (err) {
+      console.error("Error deleting account:", err);
+      alert("Failed to delete account. Please try again.");
     }
   };
 
   const handleSave = async () => {
-    const res = await fetch(`${BASE_URL}/api/user-public/update`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(user),
-    });
-    if (res.ok) {
-      alert("Profile updated");
-      setIsEditing(false);
-    } else {
-      alert("Update failed");
+    const token = localStorage.getItem("publicToken");
+    if (!token) {
+      setError("Authentication required");
+      return;
+    }
+    
+    try {
+      // Create the payload with required fields
+      const payload = {
+        full_name: user.full_name,
+        email: user.email,
+        ic_number: user.ic_number,
+        age: user.age,
+        phone_number: user.phone_number
+      };
+      
+      // Password validation
+      if (newPassword && newPassword.trim() !== '') {
+        // Verify passwords match
+        if (newPassword !== confirmPassword) {
+          alert("New password and confirmation do not match");
+          return;
+        }
+        
+        // Verify current password is provided
+        if (!currentPassword || currentPassword.trim() === '') {
+          alert("Please enter your current password to change your password");
+          return;
+        }
+        
+        // Include the new password and current password in the payload
+        payload.password = newPassword;
+        payload.currentPassword = currentPassword;
+        
+        console.log("Password change requested");
+      }
+      
+      console.log("Updating profile with payload:", { ...payload, password: payload.password ? '******' : undefined, currentPassword: payload.currentPassword ? '******' : undefined });
+      
+      const res = await fetch(`${BASE_URL}/api/public-users/profile/me`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        console.log("Update response:", data);
+        
+        // Update localStorage but don't include password
+        const userToStore = { ...user };
+        delete userToStore.password;
+        localStorage.setItem("publicUser", JSON.stringify(userToStore));
+        
+        // Reset password fields
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        
+        alert("Profile updated successfully");
+        setIsEditing(false);
+      } else {
+        const data = await res.json();
+        alert(data.message || "Update failed");
+      }
+    } catch (err) {
+      console.error("Error updating profile:", err);
+      alert("Failed to update profile. Please try again.");
     }
   };
 
@@ -157,10 +281,38 @@ export default function ProfilePage() {
   }) : '';
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      <Sidebar activePage="PROFILE" />
+    <div className="min-h-screen flex bg-gray-50 relative">
+      {/* Hamburger menu for mobile */}
+      <button
+        className="md:hidden fixed top-4 left-4 z-40 bg-white rounded-full p-2 shadow-lg border border-gray-200"
+        onClick={() => setSidebarOpen(true)}
+        aria-label="Open menu"
+      >
+        <Menu size={28} color="#000" />
+      </button>
+      {/* Sidebar as drawer on mobile, static on desktop */}
+      <div>
+        {/* Mobile Drawer */}
+        <div
+          className={`fixed inset-0 z-50 bg-black/30 transition-opacity duration-200 ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'} md:hidden`}
+          onClick={() => setSidebarOpen(false)}
+        />
+        <aside
+          className={`fixed top-0 left-0 z-50 h-full w-64 bg-white shadow-lg transform transition-transform duration-200 md:static md:translate-x-0 md:block ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:min-h-screen`}
+        >
+          {/* Close button for mobile */}
+          <button
+            className="md:hidden absolute top-4 right-4 z-50 bg-gray-100 rounded-full p-1 border border-gray-300"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close menu"
+          >
+            <X size={24} color="#000" />
+          </button>
+          <Sidebar activePage="PROFILE" />
+        </aside>
+      </div>
       {/* Main Content */}
-      <main className="flex-1 p-10">
+      <main className="flex-1 p-4 sm:p-6 md:p-10 transition-all duration-200">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Profile</h1>
         <p className="text-gray-600 mb-8 text-lg">Manage your personal information and account settings.</p>
         {/* User Info & Change Password */}
@@ -258,20 +410,60 @@ export default function ProfilePage() {
               </div>
             </div>
             <hr className="my-6" />
-            {/* Password Section - simplified */}
-            <div className="mb-4">
-              <label className="block text-sm font-bold text-gray-700 mb-1">
-                Password
-              </label>
-              <input
-                type="text"
-                value={user.password || ''}
-                onChange={e => setUser({ ...user, password: e.target.value })}
-                readOnly={!isEditing}
-                className={`w-full p-2 text-black ${isEditing ? 'bg-white' : 'bg-gray-100'} border rounded`}
-                placeholder="Enter new password"
-              />
-            </div>
+            {/* Password Section - improved */}
+            {isEditing && (
+              <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <h3 className="font-bold text-gray-800 mb-3">Change Password</h3>
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Current Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input
+                      type="password"
+                      value={currentPassword}
+                      onChange={e => setCurrentPassword(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      style={{ color: '#000' }}
+                      placeholder="Enter current password"
+                    />
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      style={{ color: '#000' }}
+                      placeholder="Enter new password"
+                    />
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={e => setConfirmPassword(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      style={{ color: '#000' }}
+                      placeholder="Confirm new password"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="mb-4">
               <label className="block font-semibold text-gray-700 mb-1">Phone Number</label>
               <div className="relative">

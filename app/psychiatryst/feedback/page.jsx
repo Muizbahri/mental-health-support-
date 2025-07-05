@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import PsychiatristSidebar from "../Sidebar";
 import { MessageCircle } from "lucide-react";
 
@@ -31,30 +32,100 @@ const RECENT_FEEDBACK = [
 ];
 
 export default function PsychiatristFeedbackPage() {
+  const router = useRouter();
   const [feedbackType, setFeedbackType] = useState("");
   const [feedbackText, setFeedbackText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const maxChars = 1000;
+
+  // Authentication check on page load
+  useEffect(() => {
+    const checkAuthentication = () => {
+      try {
+        const user = JSON.parse(localStorage.getItem("psychiatrystUser"));
+        const token = user?.token;
+        
+        if (!user || !token) {
+          // No valid authentication found, redirect to login
+          router.push("/psychiatryst/login");
+          return false;
+        }
+        
+        setIsAuthenticated(true);
+        return true;
+      } catch (error) {
+        console.error("Authentication check failed:", error);
+        router.push("/psychiatryst/login");
+        return false;
+      }
+    };
+
+    if (!checkAuthentication()) {
+      return;
+    }
+
+    // Prevent back button access after logout
+    const handlePopState = () => {
+      const user = JSON.parse(localStorage.getItem("psychiatrystUser"));
+      if (!user || !user.token) {
+        router.push("/psychiatryst/login");
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [router]);
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!feedbackType || !feedbackText.trim()) return;
     setSubmitting(true);
+    
     try {
-      const user = JSON.parse(localStorage.getItem("psychiatrystUser"));
-      const full_name = user?.full_name || "";
+      // Get user info from localStorage (more reliable)
+      const psychiatrystUserData = localStorage.getItem("psychiatrystUser");
+      let fullName = "";
+      
+      if (psychiatrystUserData) {
+        try {
+          const user = JSON.parse(psychiatrystUserData);
+          fullName = user?.full_name || "";
+        } catch (err) {
+          console.error("Error parsing psychiatrist user data:", err);
+        }
+      }
+      
+      console.log('Psychiatrist feedback submission:', {
+        user_role: "psychiatrist",
+        full_name: fullName,
+        type_of_feedback: feedbackType,
+        feedback: feedbackText.substring(0, 50) + '...'
+      });
+      
       const feedbackData = {
         user_role: "psychiatrist",
-        full_name,
+        full_name: fullName,
         type_of_feedback: feedbackType,
-        feedback: feedbackText,
-        feedback_date: new Date().toISOString().slice(0, 19).replace('T', ' ')
+        feedback: feedbackText
       };
-      const res = await fetch("http://194.164.148.171:5000/api/feedbacks", {
+      
+      const res = await fetch("http://localhost:5000/api/feedbacks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(feedbackData)
       });
+      
+      // Check if API response indicates authentication failure
+      if (res.status === 401 || res.status === 403) {
+        localStorage.clear();
+        router.push("/psychiatryst/login");
+        return;
+      }
+      
       if (res.ok) {
         setFeedbackType("");
         setFeedbackText("");
@@ -63,10 +134,23 @@ export default function PsychiatristFeedbackPage() {
         alert("Failed to submit feedback.");
       }
     } catch (err) {
+      console.error('Psychiatrist feedback error:', err);
       alert("Failed to submit feedback.");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // Show loading state while checking authentication
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Verifying authentication...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

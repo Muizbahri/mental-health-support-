@@ -16,20 +16,38 @@ export default function CounselorProfilePage() {
   const fileInputRef = useRef();
 
   useEffect(() => {
-    // Simulate auth/session: get counselor ID from localStorage
+    // Check authentication: get counselor data from localStorage
     const user = JSON.parse(localStorage.getItem("counselorUser"));
-    if (!user) {
+    const token = user?.token;
+    
+    if (!user || !token) {
       router.push("/counselor/login");
       return;
     }
-    fetch(`http://194.164.148.171:5000/api/counselors/${user.id}`)
-      .then(res => res.json())
+    
+    fetch(`http://localhost:5000/api/counselors/${user.id}`)
+      .then(res => {
+        if (res.status === 401 || res.status === 403) {
+          // Token invalid or expired, redirect to login
+          localStorage.clear();
+          router.push("/counselor/login");
+          return;
+        }
+        return res.json();
+      })
       .then(data => {
-        setCounselor(data);
-        setForm({ ...data, password: data.password || "" });
-        setOriginalForm({ ...data, password: data.password || "" });
-        setProfilePreview(data.profile_image ? `http://194.164.148.171:5000/uploads/${data.profile_image}` : null);
-        setCertificateName(data.certificate);
+        if (data && data.data) {
+          setCounselor(data.data);
+          setForm({ ...data.data, password: data.data.password || "" });
+          setOriginalForm({ ...data.data, password: data.data.password || "" });
+          setProfilePreview(data.data.profile_image ? `http://localhost:5000/uploads/${data.data.profile_image}` : null);
+          setCertificateName(data.data.certificate);
+        }
+      })
+      .catch(error => {
+        console.error("Error fetching counselor data:", error);
+        localStorage.clear();
+        router.push("/counselor/login");
       });
   }, [router]);
 
@@ -76,7 +94,7 @@ export default function CounselorProfilePage() {
       formData.append("password", originalForm.password);
     }
     const user = JSON.parse(localStorage.getItem("counselorUser"));
-    const res = await fetch(`http://194.164.148.171:5000/api/update-counselor/${user.id}`, {
+    const res = await fetch(`http://localhost:5000/api/counselors/${user.id}`, {
       method: "PUT",
       body: formData
     });
@@ -91,22 +109,76 @@ export default function CounselorProfilePage() {
 
   function handleCancelEdit() {
     setForm({ ...originalForm });
-    setProfilePreview(originalForm.profile_image ? `http://194.164.148.171:5000/uploads/${originalForm.profile_image}` : null);
+    setProfilePreview(originalForm.profile_image ? `http://localhost:5000/uploads/${originalForm.profile_image}` : null);
     setCertificateName(originalForm.certificate);
     setEditMode(false);
   }
 
   async function handleDeleteAccount() {
-    if (!window.confirm("Are you sure you want to delete your account? This cannot be undone.")) return;
-    const user = JSON.parse(localStorage.getItem("counselorUser"));
-    const res = await fetch(`http://194.164.148.171:5000/api/delete-counselor/${user.id}`, { method: "DELETE" });
-    if (res.ok) {
-      localStorage.removeItem("counselorUser");
-      localStorage.removeItem("counselorToken");
-      localStorage.removeItem("full_name");
-      router.push("/counselor/login");
-    } else {
-      alert("Failed to delete account.");
+    // Show more detailed confirmation dialog
+    const confirmed = window.confirm(
+      "⚠️ PERMANENT ACCOUNT DELETION\n\n" +
+      "This will permanently delete your counselor account and all associated data.\n\n" +
+      "This action CANNOT be undone.\n\n" +
+      "Are you absolutely sure you want to proceed?"
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      const user = JSON.parse(localStorage.getItem("counselorUser"));
+      const token = user?.token;
+      
+      if (!token) {
+        alert("Authentication token not found. Please login again.");
+        router.push("/counselor/login");
+        return;
+      }
+      
+      const res = await fetch(`http://localhost:5000/api/counselors/account/me`, { 
+        method: "DELETE",
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (res.ok) {
+        // Clear all possible authentication data from localStorage
+        localStorage.removeItem("counselorUser");
+        localStorage.removeItem("counselorToken");
+        localStorage.removeItem("full_name");
+        localStorage.removeItem("email");
+        localStorage.removeItem("user_id");
+        localStorage.removeItem("role");
+        
+        // Clear all sessionStorage as well
+        sessionStorage.clear();
+        
+        // Clear any cookies if they exist
+        document.cookie.split(";").forEach(function(c) { 
+          document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+        });
+        
+        // Force page to reload and prevent back button access
+        window.history.replaceState(null, null, '/counselor/login');
+        
+        alert("Account deleted successfully. You will be redirected to the login page.");
+        
+        // Navigate to login page
+        router.push("/counselor/login");
+        
+        // Force a hard refresh to ensure all cached data is cleared
+        setTimeout(() => {
+          window.location.href = "/counselor/login";
+        }, 100);
+      } else {
+        const errorData = await res.json();
+        alert(`Failed to delete account: ${errorData.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Delete account error:', error);
+      alert("Failed to delete account due to a network error.");
     }
   }
 
@@ -156,7 +228,7 @@ export default function CounselorProfilePage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2"><FileText size={18} /> Certificate</label>
               {counselor.certificate && (
-                <a href={`http://194.164.148.171:5000/uploads/${counselor.certificate}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">{certificateName || counselor.certificate}</a>
+                <a href={`http://localhost:5000/uploads/${counselor.certificate}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">{certificateName || counselor.certificate}</a>
               )}
               {editMode && (
                 <input type="file" name="certificate" accept=".pdf,.jpg,.jpeg,.png" className="mt-2" onChange={handleChange} />

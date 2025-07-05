@@ -1,9 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import PsychiatristSidebar from "../Sidebar";
 import { UserCircle, Mail, IdCard, Calendar, Phone, Hash, FileText, MapPin, Lock, Image as ImageIcon, Download, Save, XCircle, Trash2 } from "lucide-react";
 
 export default function PsychiatristProfilePage() {
+  const router = useRouter();
   const [profile, setProfile] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState({});
@@ -13,22 +15,126 @@ export default function PsychiatristProfilePage() {
   const [smsNotif, setSmsNotif] = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false);
   const [showCertPreview, setShowCertPreview] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Authentication check on page load
+  useEffect(() => {
+    const checkAuthentication = () => {
+      try {
+        const user = JSON.parse(localStorage.getItem("psychiatrystUser"));
+        const token = user?.token;
+        
+        if (!user || !token) {
+          // No valid authentication found, redirect to login
+          router.push("/psychiatryst/login");
+          return false;
+        }
+        
+        setIsAuthenticated(true);
+        return true;
+      } catch (error) {
+        console.error("Authentication check failed:", error);
+        router.push("/psychiatryst/login");
+        return false;
+      }
+    };
+
+    if (!checkAuthentication()) {
+      return;
+    }
+
+    // Prevent back button access after logout
+    const handlePopState = () => {
+      const user = JSON.parse(localStorage.getItem("psychiatrystUser"));
+      if (!user || !user.token) {
+        router.push("/psychiatryst/login");
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [router]);
 
   // Get psychiatrist ID from localStorage
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     const user = JSON.parse(localStorage.getItem("psychiatrystUser"));
-    if (user && user.id) {
-      fetch(`/api/psychiatrists/${user.id}`)
-        .then(res => res.json())
+    const token = user?.token;
+    let didSet = false;
+    
+    if (token) {
+      fetch("/api/psychiatrists/profile/me", {
+        headers: { "Authorization": `Bearer ${token}` }
+      })
+        .then(res => {
+          // Check if API response indicates authentication failure
+          if (res.status === 401 || res.status === 403) {
+            localStorage.clear();
+            router.push("/psychiatryst/login");
+            return;
+          }
+          return res.json();
+        })
         .then(data => {
-          setProfile(data);
-          setForm(data);
+          if (data && data.success && data.data) {
+            setProfile(data.data);
+            setForm({ ...data.data, password: '' }); // Initialize form with empty password
+            didSet = true;
+          }
+        })
+        .finally(() => {
+          if (!didSet && user?.id) {
+            fetch(`/api/psychiatrists/${user.id}`)
+              .then(res => {
+                if (res.status === 401 || res.status === 403) {
+                  localStorage.clear();
+                  router.push("/psychiatryst/login");
+                  return;
+                }
+                return res.json();
+              })
+              .then(data2 => {
+                if (data2 && data2.success && data2.data) {
+                  setProfile(data2.data);
+                  setForm({ ...data2.data, password: '' }); // Initialize form with empty password
+                } else {
+                  setProfile(null);
+                }
+                setLoading(false);
+              });
+          } else {
+            setLoading(false);
+          }
+        });
+    } else if (user?.id) {
+      fetch(`/api/psychiatrists/${user.id}`)
+        .then(res => {
+          if (res.status === 401 || res.status === 403) {
+            localStorage.clear();
+            router.push("/psychiatryst/login");
+            return;
+          }
+          return res.json();
+        })
+        .then(data2 => {
+          if (data2 && data2.success && data2.data) {
+            setProfile(data2.data);
+            setForm({ ...data2.data, password: '' }); // Initialize form with empty password
+          } else {
+            setProfile(null);
+          }
           setLoading(false);
         });
     } else {
       setLoading(false);
     }
-  }, []);
+  }, [isAuthenticated, router]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -36,8 +142,8 @@ export default function PsychiatristProfilePage() {
 
   const isFormChanged = () => {
     if (!profile) return false;
-    // Compare all editable fields
-    return (
+    // Compare all editable fields except password (password only counts as changed if it's not empty)
+    const fieldsChanged = (
       form.full_name !== profile.full_name ||
       form.email !== profile.email ||
       form.ic_number !== profile.ic_number ||
@@ -47,9 +153,13 @@ export default function PsychiatristProfilePage() {
       form.location !== profile.location ||
       form.address !== profile.address ||
       form.latitude !== profile.latitude ||
-      form.longitude !== profile.longitude ||
-      form.password !== profile.password
+      form.longitude !== profile.longitude
     );
+    
+    // Password only counts as changed if it's not empty
+    const passwordChanged = form.password && form.password.trim() !== '';
+    
+    return fieldsChanged || passwordChanged;
   };
 
   const handleSave = async (e) => {
@@ -60,20 +170,65 @@ export default function PsychiatristProfilePage() {
     }
     setSaving(true);
     const user = JSON.parse(localStorage.getItem("psychiatrystUser"));
-    await fetch(`/api/psychiatrists/${user.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    // Always re-fetch the latest profile after save
-    const res = await fetch(`/api/psychiatrists/${user.id}`);
-    const data = await res.json();
-    setProfile(data);
-    setForm(data);
-    setEditMode(false);
-    setSaving(false);
-    alert('Profile updated successfully!');
+    const token = user?.token;
+    
+    // Create update data, only include password if it's not empty
+    const updateData = { ...form };
+    if (!updateData.password || updateData.password.trim() === '') {
+      delete updateData.password; // Remove password field if empty
+    }
+    
+    try {
+      const response = await fetch("/api/psychiatrists/profile/me", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify(updateData),
+      });
+      
+      if (response.status === 401 || response.status === 403) {
+        localStorage.clear();
+        router.push("/psychiatryst/login");
+        return;
+      }
+      
+      // Always re-fetch the latest profile after save
+      const res = await fetch("/api/psychiatrists/profile/me", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      
+      if (res.status === 401 || res.status === 403) {
+        localStorage.clear();
+        router.push("/psychiatryst/login");
+        return;
+      }
+      
+      const data = await res.json();
+      setProfile(data.data);
+      setForm({ ...data.data, password: '' }); // Reset form with empty password after save
+      setEditMode(false);
+      alert('Profile updated successfully!');
+    } catch (error) {
+      console.error("Profile update error:", error);
+      alert('Failed to update profile. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
+
+  // Show loading state while checking authentication
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Verifying authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) return <div className="min-h-screen flex bg-[#f8fafc]"><PsychiatristSidebar activePage="PROFILE" /><main className="flex-1 px-8 py-10">Loading...</main></div>;
   if (!profile) return <div className="min-h-screen flex bg-[#f8fafc]"><PsychiatristSidebar activePage="PROFILE" /><main className="flex-1 px-8 py-10">Profile not found.</main></div>;
@@ -91,7 +246,7 @@ export default function PsychiatristProfilePage() {
               <label className="block text-center font-medium text-gray-700 mb-1">Profile Image</label>
               {profile.profile_image ? (
                 <img
-                  src={`http://194.164.148.171:5000/uploads/${profile.profile_image}`}
+                  src={`http://localhost:5000/uploads/${profile.profile_image}`}
                   alt="Profile"
                   className="w-24 h-24 rounded-full object-cover border-4 border-blue-100 bg-gray-100"
                   onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
@@ -112,42 +267,42 @@ export default function PsychiatristProfilePage() {
                 <label className="block font-medium text-gray-700 mb-1">Full Name</label>
                 <div className="flex items-center gap-2">
                   <UserCircle size={18} className="text-gray-400" />
-                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="full_name" value={editMode ? form.full_name : profile.full_name || ""} onChange={handleChange} readOnly={!editMode} />
+                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="full_name" value={editMode ? (form.full_name || "") : (profile.full_name || "")} onChange={handleChange} readOnly={!editMode} />
                 </div>
               </div>
               <div>
                 <label className="block font-medium text-gray-700 mb-1">Email Address</label>
                 <div className="flex items-center gap-2">
                   <Mail size={18} className="text-gray-400" />
-                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="email" value={editMode ? form.email : profile.email || ""} onChange={handleChange} readOnly={!editMode} />
+                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="email" value={editMode ? (form.email || "") : (profile.email || "")} onChange={handleChange} readOnly={!editMode} />
                 </div>
               </div>
               <div>
                 <label className="block font-medium text-gray-700 mb-1">IC Number</label>
                 <div className="flex items-center gap-2">
                   <IdCard size={18} className="text-gray-400" />
-                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="ic_number" value={editMode ? form.ic_number : profile.ic_number || ""} onChange={handleChange} readOnly={!editMode} />
+                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="ic_number" value={editMode ? (form.ic_number || "") : (profile.ic_number || "")} onChange={handleChange} readOnly={!editMode} />
                 </div>
               </div>
               <div>
                 <label className="block font-medium text-gray-700 mb-1">Age</label>
                 <div className="flex items-center gap-2">
                   <Calendar size={18} className="text-gray-400" />
-                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="age" value={editMode ? form.age : profile.age || ""} onChange={handleChange} readOnly={!editMode} />
+                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="age" value={editMode ? (form.age || "") : (profile.age || "")} onChange={handleChange} readOnly={!editMode} />
                 </div>
               </div>
               <div>
                 <label className="block font-medium text-gray-700 mb-1">Phone Number</label>
                 <div className="flex items-center gap-2">
                   <Phone size={18} className="text-gray-400" />
-                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="phone_number" value={editMode ? form.phone_number : profile.phone_number || ""} onChange={handleChange} readOnly={!editMode} />
+                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="phone_number" value={editMode ? (form.phone_number || "") : (profile.phone_number || "")} onChange={handleChange} readOnly={!editMode} />
                 </div>
               </div>
               <div>
                 <label className="block font-medium text-gray-700 mb-1">Medical Registration Number</label>
                 <div className="flex items-center gap-2">
                   <Hash size={18} className="text-gray-400" />
-                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="med_number" value={editMode ? form.med_number : profile.med_number || ""} onChange={handleChange} readOnly={!editMode} />
+                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="med_number" value={editMode ? (form.med_number || "") : (profile.med_number || "")} onChange={handleChange} readOnly={!editMode} />
                 </div>
               </div>
               <div>
@@ -156,7 +311,7 @@ export default function PsychiatristProfilePage() {
                   <FileText size={18} className="text-gray-400" />
                   {profile.certificate ? (
                     <>
-                      <a href={`http://194.164.148.171:5000/uploads/${profile.certificate}`} className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer" download>
+                      <a href={`http://localhost:5000/uploads/${profile.certificate}`} className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer" download>
                         {profile.certificate}
                         <Download size={16} className="inline ml-1" />
                       </a>
@@ -164,28 +319,98 @@ export default function PsychiatristProfilePage() {
                         <button
                           type="button"
                           className="ml-2 px-3 py-1 bg-teal-600 text-white rounded hover:bg-teal-700 text-sm font-semibold"
-                          onClick={() => setShowCertPreview(true)}
+                          onClick={() => {
+                            setShowCertPreview(true);
+                            setPdfLoading(true);
+                            setPdfError(false);
+                          }}
                         >
                           Preview
                         </button>
                       )}
                       {showCertPreview && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-                          <div className="bg-white rounded-lg shadow-lg p-4 max-w-3xl w-full relative flex flex-col items-center">
-                            <h2 className="text-lg font-bold mb-2">Certificate Preview</h2>
-                            <iframe
-                              src={`http://194.164.148.171:5000/uploads/${profile.certificate}`}
-                              width="700"
-                              height="500"
-                              title="Certificate Preview"
-                              className="border rounded mb-4"
-                            />
-                            <button
-                              className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 font-semibold"
-                              onClick={() => setShowCertPreview(false)}
-                            >
-                              Close
-                            </button>
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+                          <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col">
+                            {/* Header */}
+                            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                              <h2 className="text-xl font-bold text-gray-900">Certificate Preview</h2>
+                              <button
+                                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                                onClick={() => {
+                                  setShowCertPreview(false);
+                                  setPdfLoading(false);
+                                  setPdfError(false);
+                                }}
+                              >
+                                <XCircle size={24} className="text-gray-500" />
+                              </button>
+                            </div>
+                            
+                            {/* PDF Viewer */}
+                            <div className="flex-1 p-6 relative">
+                              {pdfLoading && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-gray-50 rounded-lg">
+                                  <div className="text-center">
+                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+                                    <p className="text-gray-600">Loading PDF...</p>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {pdfError && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-gray-50 rounded-lg">
+                                  <div className="text-center max-w-md">
+                                    <FileText size={48} className="text-gray-400 mx-auto mb-4" />
+                                    <p className="text-gray-600 mb-4">Unable to preview PDF in browser.</p>
+                                    <button
+                                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                      onClick={() => window.open(`http://localhost:5000/uploads/${profile.certificate}`, '_blank')}
+                                    >
+                                      Open in New Tab
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              <iframe
+                                src={`http://localhost:5000/uploads/${profile.certificate}`}
+                                className="w-full h-full border border-gray-300 rounded-lg"
+                                title="Certificate Preview"
+                                onLoad={() => setPdfLoading(false)}
+                                onError={() => {
+                                  setPdfLoading(false);
+                                  setPdfError(true);
+                                }}
+                              />
+                            </div>
+                            
+                            {/* Footer */}
+                            <div className="p-6 border-t border-gray-200 flex gap-3 justify-end">
+                              <button
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                                onClick={() => window.open(`http://localhost:5000/uploads/${profile.certificate}`, '_blank')}
+                              >
+                                Open in New Tab
+                              </button>
+                              <a
+                                href={`http://localhost:5000/uploads/${profile.certificate}`}
+                                download
+                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                              >
+                                <Download size={16} />
+                                Download
+                              </a>
+                              <button
+                                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                                onClick={() => {
+                                  setShowCertPreview(false);
+                                  setPdfLoading(false);
+                                  setPdfError(false);
+                                }}
+                              >
+                                Close
+                              </button>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -199,28 +424,36 @@ export default function PsychiatristProfilePage() {
                 <label className="block font-medium text-gray-700 mb-1">Clinic/Hospital Location</label>
                 <div className="flex items-center gap-2">
                   <MapPin size={18} className="text-gray-400" />
-                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="location" value={editMode ? form.location : profile.location || ""} onChange={handleChange} readOnly={!editMode} />
+                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="location" value={editMode ? (form.location || "") : (profile.location || "")} onChange={handleChange} readOnly={!editMode} />
                 </div>
               </div>
               <div>
                 <label className="block font-medium text-gray-700 mb-1">Clinic/Hospital Address</label>
                 <div className="flex items-center gap-2">
                   <MapPin size={18} className="text-gray-400" />
-                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="address" value={editMode ? form.address : profile.address || ""} onChange={handleChange} readOnly={!editMode} />
+                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="address" value={editMode ? (form.address || "") : (profile.address || "")} onChange={handleChange} readOnly={!editMode} />
                 </div>
               </div>
               <div>
                 <label className="block font-medium text-gray-700 mb-1">Latitude / Longitude</label>
                 <div className="flex gap-2">
-                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="latitude" value={editMode ? form.latitude : profile.latitude || ""} onChange={handleChange} readOnly={!editMode} placeholder="Latitude" />
-                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="longitude" value={editMode ? form.longitude : profile.longitude || ""} onChange={handleChange} readOnly={!editMode} placeholder="Longitude" />
+                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="latitude" value={editMode ? (form.latitude || "") : (profile.latitude || "")} onChange={handleChange} readOnly={!editMode} placeholder="Latitude" />
+                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="longitude" value={editMode ? (form.longitude || "") : (profile.longitude || "")} onChange={handleChange} readOnly={!editMode} placeholder="Longitude" />
                 </div>
               </div>
               <div>
                 <label className="block font-medium text-gray-700 mb-1">Password</label>
                 <div className="flex items-center gap-2">
                   <Lock size={18} className="text-gray-400" />
-                  <input className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" name="password" type="password" value={editMode ? form.password : profile.password || ""} onChange={handleChange} readOnly={!editMode} />
+                  <input 
+                    className="w-full border rounded px-3 py-2 text-gray-700 bg-gray-50" 
+                    name="password" 
+                    type="password" 
+                    value={editMode ? (form.password || "") : "••••••••"} 
+                    onChange={handleChange} 
+                    readOnly={!editMode}
+                    placeholder={editMode ? "Leave empty to keep current password" : ""}
+                  />
                 </div>
               </div>
               <div className="flex flex-wrap gap-4 mt-8 w-full justify-center">
@@ -237,7 +470,10 @@ export default function PsychiatristProfilePage() {
                     <button
                       type="button"
                       className="flex-1 min-w-[120px] flex items-center justify-center gap-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 rounded-lg shadow transition"
-                      onClick={() => { setEditMode(false); setForm(profile); }}
+                      onClick={() => { 
+                        setEditMode(false); 
+                        setForm({ ...profile, password: '' }); // Reset form with empty password
+                      }}
                       disabled={saving}
                     >
                       <XCircle size={20} className="text-pink-500" />
@@ -270,7 +506,11 @@ export default function PsychiatristProfilePage() {
                     <button
                       type="button"
                       className="flex-1 min-w-[120px] flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg shadow transition"
-                      onClick={() => setEditMode(true)}
+                      onClick={() => {
+                        setEditMode(true);
+                        // Clear password field when entering edit mode
+                        setForm({ ...profile, password: '' });
+                      }}
                       disabled={false}
                     >
                       Edit Profile

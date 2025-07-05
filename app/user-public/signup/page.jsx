@@ -59,26 +59,62 @@ export default function PublicSignUpPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
+    
+    const formData = new FormData();
+    formData.append("full_name", form.fullName);
+    formData.append("email", form.email);
+    formData.append("ic_number", form.icNumber);
+    formData.append("phone_number", form.phone);
+    formData.append("password", form.password);
+    if (form.profileImage) formData.append("profile_image", form.profileImage);
+    
+    console.log("Submitting signup form data:", {
+      full_name: form.fullName,
+      email: form.email,
+      ic_number: form.icNumber,
+      phone_number: form.phone,
+      has_profile_image: !!form.profileImage
+    });
+    
     try {
-      const formData = new FormData();
-      formData.append("full_name", form.fullName);
-      formData.append("email", form.email);
-      formData.append("ic_number", form.icNumber);
-      formData.append("phone_number", form.phone);
-      formData.append("password", form.password);
-      if (form.profileImage) formData.append("profile_image", form.profileImage);
-      const res = await fetch("http://194.164.148.171:5000/api/add-public", {
+      // Try the new endpoint first
+      let res = await fetch("http://localhost:5000/api/public-users", {
         method: "POST",
         body: formData,
       });
+      
+      // If the new endpoint fails, try the old one
+      if (!res.ok && res.status === 404) {
+        console.log("New endpoint failed with 404, trying old endpoint");
+        res = await fetch("http://localhost:5000/api/add-public", {
+          method: "POST",
+          body: formData,
+        });
+      }
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Signup error response:", errorText);
+        try {
+          const errorData = JSON.parse(errorText);
+          setError(errorData.message || `Error: ${res.status} ${res.statusText}`);
+        } catch (jsonError) {
+          setError(`Error: ${res.status} ${res.statusText}`);
+        }
+        setLoading(false);
+        return;
+      }
+      
       const data = await res.json();
-      if (data.success || data.message === 'User added successfully') {
+      console.log("Signup response:", data);
+      
+      if (data.success || data.message === 'User created successfully') {
         router.push("/user-public/login");
       } else {
         setError(data.message || "Sign up failed");
       }
     } catch (err) {
-      console.error(err);
+      console.error("Signup error:", err);
       setError("Sign up failed: " + err.message);
     } finally {
       setLoading(false);

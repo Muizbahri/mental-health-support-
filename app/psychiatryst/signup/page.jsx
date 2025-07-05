@@ -147,7 +147,7 @@ export default function PsychiatristSignUpPage() {
       formData.append("latitude", form.latitude);
       formData.append("longitude", form.longitude);
       formData.append("password", form.password);
-      const res = await fetch("http://194.164.148.171:5000/api/add-psychiatrist", {
+      const res = await fetch("/api/psychiatrists", {
         method: "POST",
         body: formData
       });
@@ -384,12 +384,22 @@ export default function PsychiatristSignUpPage() {
             </div>
             <button
               type="submit"
-              className="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2 rounded-lg transition disabled:opacity-60"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition"
               disabled={loading}
             >
               {loading ? "Signing Up..." : "Sign Up"}
             </button>
           </form>
+          <div className="flex justify-center mt-6">
+            <button
+              className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium bg-white bg-opacity-80 px-4 py-2 rounded-lg shadow transition"
+              onClick={() => router.push('/psychiatryst/login')}
+              type="button"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+              Back to Psychiatrist Login
+            </button>
+          </div>
         </div>
       </div>
     </div>
