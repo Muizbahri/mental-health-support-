@@ -21,6 +21,33 @@ export default function FindLocationPage() {
   const geoapifyKey = process.env.NEXT_PUBLIC_GEOAPIFY_KEY;
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Test function for debugging API connectivity
+  const testGeoapifyAPI = async () => {
+    const apiKey = geoapifyKey || 'f11e9d96b2ce4799bb35938168cfc842';
+    const testUrl = `https://api.geoapify.com/v1/routing?waypoints=3.139,101.6869|3.140,101.6879&mode=drive&apiKey=${apiKey}`;
+    
+    console.log('Testing Geoapify API...');
+    console.log('API Key:', apiKey ? 'Available' : 'Missing');
+    
+    try {
+      const response = await fetch(testUrl);
+      const data = await response.json();
+      console.log('API Test Result:', response.status, data);
+      return { success: response.ok, data, status: response.status };
+    } catch (error) {
+      console.error('API Test Error:', error);
+      return { success: false, error };
+    }
+  };
+
+  // Expose test function to global scope for debugging
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.testGeoapifyAPI = testGeoapifyAPI;
+      console.log('Debug function available: window.testGeoapifyAPI()');
+    }
+  }, [geoapifyKey]);
+
   // Portal root for sidebar/overlay
   const portalRoot = typeof window !== "undefined" ? document.body : null;
 
@@ -85,45 +112,100 @@ export default function FindLocationPage() {
   const handleGo = async (prof) => {
     const destLat = parseFloat(prof.latitude);
     const destLon = parseFloat(prof.longitude);
+    
+    // Enhanced validation
     if (isNaN(destLat) || isNaN(destLon)) {
-      alert('Invalid coordinates');
+      console.error('Invalid destination coordinates:', prof.latitude, prof.longitude);
+      alert('Invalid destination coordinates. Please contact support.');
       return;
     }
+    
     if (!userLocation) {
       alert('Your location is not available. Please enable location services and try again.');
       return;
     }
-    setLoadingRoute(true);
-    setRouteCoords(null);
-    setRouteInfo(null);
     
+    // Validate user location
     const userLat = userLocation.lat;
     const userLon = userLocation.lon;
     
+    if (isNaN(userLat) || isNaN(userLon)) {
+      console.error('Invalid user location:', userLocation);
+      alert('Invalid user location. Please refresh the page and try again.');
+      return;
+    }
+    
+    console.log('Routing from:', userLat, userLon, 'to:', destLat, destLon);
+    console.log('API Key available:', !!geoapifyKey);
+    
+    setLoadingRoute(true);
+    setRouteCoords(null);
+    setRouteInfo(null);
     setSelectedProfessional(prof);
 
     try {
-      const url = `https://api.geoapify.com/v1/routing?waypoints=${userLat},${userLon}|${destLat},${destLon}&mode=drive&apiKey=${geoapifyKey}`;
+      // Use the API key from environment variable
+      const apiKey = geoapifyKey || process.env.NEXT_PUBLIC_GEOAPIFY_KEY || 'f11e9d96b2ce4799bb35938168cfc842';
+      const url = `https://api.geoapify.com/v1/routing?waypoints=${userLat},${userLon}|${destLat},${destLon}&mode=drive&apiKey=${apiKey}`;
+      
+      console.log('Routing URL:', url.replace(apiKey, 'API_KEY_HIDDEN'));
+      
       const res = await fetch(url);
       const data = await res.json();
-      if (!data.features || data.features.length === 0) {
-        alert('No route found!');
-        setRouteCoords(null);
-        setRouteInfo(null);
-      } else if (data.features[0]) {
+      
+      console.log('Routing API Response Status:', res.status);
+      console.log('Routing API Response:', data);
+      
+      // Handle API errors
+      if (!res.ok) {
+        console.error('API Error:', res.status, data);
+        if (res.status === 401) {
+          alert('API key is invalid or expired. Please contact support.');
+        } else if (res.status === 403) {
+          alert('API usage limit exceeded. Please try again later.');
+        } else {
+          alert(`Routing service error (${res.status}). Please try again.`);
+        }
+        return;
+      }
+      
+      // Handle successful response
+      if (data.features && data.features.length > 0 && data.features[0].geometry) {
         const coords = data.features[0].geometry.coordinates[0];
-        const route = coords.map(c => [c[1], c[0]]);
-        setRouteCoords(route);
-        const props = data.features[0].properties;
-        setRouteInfo({
-          distance: props.distance, // meters
-          time: props.time // seconds
-        });
+        if (coords && coords.length > 0) {
+          // Convert coordinates from [lon, lat] to [lat, lon] for Leaflet
+          const route = coords.map(c => [c[1], c[0]]);
+          setRouteCoords(route);
+          
+          const props = data.features[0].properties;
+          setRouteInfo({
+            distance: props.distance || 0, // meters
+            time: props.time || 0 // seconds
+          });
+          
+          console.log('Route found:', route.length, 'points');
+        } else {
+          console.error('No coordinates in route response');
+          alert('Route data is incomplete. Please try again.');
+        }
+      } else {
+        console.error('No route features found in response:', data);
+        if (data.error) {
+          alert(`Routing error: ${data.error.message || 'Unknown error'}`);
+        } else {
+          alert('No route found between your location and the destination. This might be due to geographical limitations.');
+        }
       }
     } catch (err) {
+      console.error('Routing request failed:', err);
       setRouteCoords(null);
       setRouteInfo(null);
-      alert('Failed to get route.');
+      
+      if (err.name === 'TypeError' && err.message.includes('fetch')) {
+        alert('Network error. Please check your internet connection and try again.');
+      } else {
+        alert('Failed to get route. Please try again.');
+      }
     } finally {
       setLoadingRoute(false);
     }
@@ -174,7 +256,25 @@ export default function FindLocationPage() {
         <div className="max-w-5xl mx-auto flex flex-col gap-8">
           {/* Map Section */}
           <div className="bg-white p-6 rounded-xl shadow-md mb-6">
-            <h2 className="text-xl font-bold text-blue-800 mb-4">📍 Location Map</h2>
+            <h2 className="text-xl font-bold text-blue-800 mb-4">�� Location Map</h2>
+            
+            {/* Debug Info Panel - Only show if there are issues */}
+            {(!geoapifyKey || !userLocation) && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <h3 className="font-semibold text-yellow-800 mb-2">⚠️ Configuration Status</h3>
+                <div className="text-sm text-yellow-700 space-y-1">
+                  <div>API Key: {geoapifyKey ? '✅ Available' : '❌ Missing'}</div>
+                  <div>User Location: {userLocation ? '✅ Available' : '❌ Requesting...'}</div>
+                  <div>Environment: {process.env.NODE_ENV || 'development'}</div>
+                  {!geoapifyKey && (
+                    <div className="text-yellow-600 mt-2">
+                      <b>Note:</b> Using fallback API key. For production, set NEXT_PUBLIC_GEOAPIFY_KEY environment variable.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
             <div className="h-96 w-full rounded-lg overflow-hidden border">
               <MapComponent
                 professionals={allProfessionals}
@@ -190,6 +290,24 @@ export default function FindLocationPage() {
                   <span className="mr-4">Distance: <span className="font-bold">{(routeInfo.distance / 1000).toFixed(2)} km</span></span>
                   <span>Time: <span className="font-bold">{formatTime(routeInfo.time)}</span></span>
                 </div>
+              </div>
+            )}
+            
+            {/* Debug/Test Controls - Only show in development or when testing */}
+            {(process.env.NODE_ENV === 'development' || window.location.search.includes('debug=true')) && (
+              <div className="mt-4 flex justify-center gap-2">
+                <button
+                  onClick={() => window.testGeoapifyAPI?.()}
+                  className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm"
+                >
+                  Test API
+                </button>
+                <button
+                  onClick={() => console.log('Debug Info:', { userLocation, geoapifyKey: !!geoapifyKey, professionals: professionals.length })}
+                  className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm"
+                >
+                  Debug Info
+                </button>
               </div>
             )}
           </div>
@@ -234,12 +352,20 @@ export default function FindLocationPage() {
                           <span className="font-semibold text-gray-900">{prof.full_name}</span>
                           <span className={`ml-2 px-2 py-1 rounded-full text-xs font-semibold ${showType === 'psychiatrist' ? 'bg-indigo-900 text-white' : 'bg-purple-200 text-purple-900'}`}>{showType === 'psychiatrist' ? 'Psychiatrist' : 'Counselor'}</span>
                           <button
-                            className="ml-3 flex items-center gap-1 px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition text-xs"
+                            className={`ml-3 flex items-center gap-1 px-2 py-1 ${loadingRoute ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'} text-white rounded transition text-xs`}
                             onClick={e => { e.stopPropagation(); if (!isNaN(lat) && !isNaN(lon)) handleGo(prof); else alert('Invalid coordinates'); }}
                             disabled={loadingRoute}
                             title="Show route from your location"
                           >
-                            <span role="img" aria-label="route">🛣️</span> Go
+                            {loadingRoute ? (
+                              <>
+                                <span className="animate-spin">⏳</span> Loading...
+                              </>
+                            ) : (
+                              <>
+                                <span role="img" aria-label="route">🛣️</span> Go
+                              </>
+                            )}
                           </button>
                         </div>
                         <div className="flex items-center gap-2 mt-1 text-gray-600 text-sm">
