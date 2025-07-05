@@ -38,7 +38,7 @@ export default function EmergencyReportsPage() {
     if (!user) return;
     setLoading(true);
     const token = localStorage.getItem('counselorToken');
-    fetch(`http://localhost:5000/api/emergency-cases?counselor_id=${user.id}`, {
+            fetch(`/api/emergency-cases?counselor_id=${user.id}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
@@ -67,8 +67,8 @@ export default function EmergencyReportsPage() {
     // Fetch professionals for dropdown
     async function fetchProfessionals() {
       const [counselorRes, psychiatristRes] = await Promise.all([
-        fetch("http://localhost:5000/api/counselors").then(res => res.json()),
-        fetch("http://localhost:5000/api/psychiatrists").then(res => res.json()),
+              fetch("/api/counselors").then(res => res.json()),
+      fetch("/api/psychiatrists").then(res => res.json()),
       ]);
       
       // Get current logged-in counselor
@@ -134,7 +134,7 @@ export default function EmergencyReportsPage() {
       psychiatrist_id,
     };
     const token = localStorage.getItem('counselorToken');
-    const res = await fetch(`http://localhost:5000/api/emergency-cases/${current.id}`, {
+          const res = await fetch(`/api/emergency-cases/${current.id}`, {
       method: "PUT",
       headers: { 
         "Content-Type": "application/json",
@@ -154,7 +154,7 @@ export default function EmergencyReportsPage() {
     if (!window.confirm("Are you sure you want to delete this emergency case?")) return;
     setDeletingId(id);
     const token = localStorage.getItem('counselorToken');
-    const res = await fetch(`http://localhost:5000/api/emergency-cases/${id}`, { 
+    const res = await fetch(`/api/emergency-cases/${id}`, { 
       method: "DELETE",
       headers: { "Authorization": `Bearer ${token}` }
     });
@@ -203,7 +203,7 @@ export default function EmergencyReportsPage() {
       psychiatrist_id,
     };
     const token = localStorage.getItem('counselorToken');
-    const res = await fetch("http://localhost:5000/api/emergency-cases/admin", {
+    const res = await fetch("/api/emergency-cases/admin", {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
@@ -218,7 +218,7 @@ export default function EmergencyReportsPage() {
       // Refresh cases
       const data = await res.json();
       const token = localStorage.getItem('counselorToken');
-      fetch(`http://localhost:5000/api/emergency-cases?counselor_id=${user.id}`, {
+      fetch(`/api/emergency-cases?counselor_id=${user.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
         .then(res => res.json())

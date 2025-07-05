@@ -145,7 +145,7 @@ export default function PsychiatristDashboard() {
         const emerData = await emerRes.json();
         setEmergencies(emerData.success ? emerData.data : []);
         
-        const refRes = await fetch(`http://localhost:5000/api/referral-requests/psychiatrist`, {
+        const refRes = await fetch(`/api/referral-requests/psychiatrist`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         

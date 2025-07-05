@@ -25,7 +25,7 @@ export default function CounselorProfilePage() {
       return;
     }
     
-    fetch(`http://localhost:5000/api/counselors/${user.id}`)
+          fetch(`/api/counselors/${user.id}`)
       .then(res => {
         if (res.status === 401 || res.status === 403) {
           // Token invalid or expired, redirect to login
@@ -40,7 +40,7 @@ export default function CounselorProfilePage() {
           setCounselor(data.data);
           setForm({ ...data.data, password: data.data.password || "" });
           setOriginalForm({ ...data.data, password: data.data.password || "" });
-          setProfilePreview(data.data.profile_image ? `http://localhost:5000/uploads/${data.data.profile_image}` : null);
+          setProfilePreview(data.data.profile_image ? `/uploads/${data.data.profile_image}` : null);
           setCertificateName(data.data.certificate);
         }
       })
@@ -94,7 +94,7 @@ export default function CounselorProfilePage() {
       formData.append("password", originalForm.password);
     }
     const user = JSON.parse(localStorage.getItem("counselorUser"));
-    const res = await fetch(`http://localhost:5000/api/counselors/${user.id}`, {
+    const res = await fetch(`/api/counselors/${user.id}`, {
       method: "PUT",
       body: formData
     });
@@ -109,7 +109,7 @@ export default function CounselorProfilePage() {
 
   function handleCancelEdit() {
     setForm({ ...originalForm });
-    setProfilePreview(originalForm.profile_image ? `http://localhost:5000/uploads/${originalForm.profile_image}` : null);
+            setProfilePreview(originalForm.profile_image ? `/uploads/${originalForm.profile_image}` : null);
     setCertificateName(originalForm.certificate);
     setEditMode(false);
   }
@@ -135,7 +135,7 @@ export default function CounselorProfilePage() {
         return;
       }
       
-      const res = await fetch(`http://localhost:5000/api/counselors/account/me`, { 
+      const res = await fetch(`/api/counselors/account/me`, { 
         method: "DELETE",
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -228,7 +228,7 @@ export default function CounselorProfilePage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2"><FileText size={18} /> Certificate</label>
               {counselor.certificate && (
-                <a href={`http://localhost:5000/uploads/${counselor.certificate}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">{certificateName || counselor.certificate}</a>
+                <a href={`/uploads/${counselor.certificate}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">{certificateName || counselor.certificate}</a>
               )}
               {editMode && (
                 <input type="file" name="certificate" accept=".pdf,.jpg,.jpeg,.png" className="mt-2" onChange={handleChange} />

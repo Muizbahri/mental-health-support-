@@ -23,7 +23,7 @@ export default function PublicLoginPage() {
       console.log("Attempting login with email:", email);
       
       // Use the correct API endpoint that matches the backend route
-      const res = await fetch("http://localhost:5000/api/public-users/login", {
+      const res = await fetch("/api/public-users/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

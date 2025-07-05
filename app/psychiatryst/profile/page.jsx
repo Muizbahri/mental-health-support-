@@ -246,7 +246,7 @@ export default function PsychiatristProfilePage() {
               <label className="block text-center font-medium text-gray-700 mb-1">Profile Image</label>
               {profile.profile_image ? (
                 <img
-                  src={`http://localhost:5000/uploads/${profile.profile_image}`}
+                  src={`/uploads/${profile.profile_image}`}
                   alt="Profile"
                   className="w-24 h-24 rounded-full object-cover border-4 border-blue-100 bg-gray-100"
                   onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
@@ -311,7 +311,7 @@ export default function PsychiatristProfilePage() {
                   <FileText size={18} className="text-gray-400" />
                   {profile.certificate ? (
                     <>
-                      <a href={`http://localhost:5000/uploads/${profile.certificate}`} className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer" download>
+                      <a href={`/uploads/${profile.certificate}`} className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer" download>
                         {profile.certificate}
                         <Download size={16} className="inline ml-1" />
                       </a>
@@ -364,7 +364,7 @@ export default function PsychiatristProfilePage() {
                                     <p className="text-gray-600 mb-4">Unable to preview PDF in browser.</p>
                                     <button
                                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                                      onClick={() => window.open(`http://localhost:5000/uploads/${profile.certificate}`, '_blank')}
+                                      onClick={() => window.open(`/uploads/${profile.certificate}`, '_blank')}
                                     >
                                       Open in New Tab
                                     </button>
@@ -373,7 +373,7 @@ export default function PsychiatristProfilePage() {
                               )}
                               
                               <iframe
-                                src={`http://localhost:5000/uploads/${profile.certificate}`}
+                                src={`/uploads/${profile.certificate}`}
                                 className="w-full h-full border border-gray-300 rounded-lg"
                                 title="Certificate Preview"
                                 onLoad={() => setPdfLoading(false)}
@@ -388,12 +388,12 @@ export default function PsychiatristProfilePage() {
                             <div className="p-6 border-t border-gray-200 flex gap-3 justify-end">
                               <button
                                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                                onClick={() => window.open(`http://localhost:5000/uploads/${profile.certificate}`, '_blank')}
+                                onClick={() => window.open(`/uploads/${profile.certificate}`, '_blank')}
                               >
                                 Open in New Tab
                               </button>
                               <a
-                                href={`http://localhost:5000/uploads/${profile.certificate}`}
+                                href={`/uploads/${profile.certificate}`}
                                 download
                                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
                               >

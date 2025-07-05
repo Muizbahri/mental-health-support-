@@ -31,7 +31,7 @@ export default function CounselorMaterialsPage() {
 
   async function fetchMaterials() {
     setLoading(true);
-    const res = await fetch("http://localhost:5000/api/materials");
+    const res = await fetch("/api/materials");
     const data = await res.json();
     setMaterials(groupByType(data.data || []));
     setLoading(false);
@@ -52,7 +52,7 @@ export default function CounselorMaterialsPage() {
 
   async function handleDelete(type, id) {
     if (!window.confirm("Are you sure you want to delete this material?")) return;
-    await fetch(`http://localhost:5000/api/materials/${id}`, { method: "DELETE" });
+    await fetch(`/api/materials/${id}`, { method: "DELETE" });
     fetchMaterials();
   }
 
@@ -60,13 +60,13 @@ export default function CounselorMaterialsPage() {
     e.preventDefault();
     if (!form.title || !form.upload) return;
     if (modal.type === "add") {
-      await fetch("http://localhost:5000/api/materials", {
+      await fetch("/api/materials", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, type: modal.matType })
       });
     } else if (modal.type === "edit") {
-      await fetch(`http://localhost:5000/api/materials/${form.id}`, {
+      await fetch(`/api/materials/${form.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form)

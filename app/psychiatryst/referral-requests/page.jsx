@@ -68,7 +68,7 @@ export default function PsychiatristReferralRequestsPage() {
     setError("");
     try {
       const token = localStorage.getItem('psychiatrystToken');
-      const res = await fetch(`http://localhost:5000/api/referral-requests/psychiatrist?status=${encodeURIComponent(statusFilter)}`, {
+      const res = await fetch(`/api/referral-requests/psychiatrist?status=${encodeURIComponent(statusFilter)}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -105,7 +105,7 @@ export default function PsychiatristReferralRequestsPage() {
     setError("");
     try {
       const token = localStorage.getItem('psychiatrystToken');
-      const res = await fetch(`http://localhost:5000/api/referral-requests/${id}`, {
+      const res = await fetch(`/api/referral-requests/${id}`, {
         method: "PUT",
         headers: { 
           "Content-Type": "application/json",
@@ -137,7 +137,7 @@ export default function PsychiatristReferralRequestsPage() {
     setError("");
     try {
       const token = localStorage.getItem('psychiatrystToken');
-      const response = await fetch(`http://localhost:5000/api/referral-requests/${id}`, { 
+      const response = await fetch(`/api/referral-requests/${id}`, { 
         method: "DELETE",
         headers: {
           "Authorization": `Bearer ${token}`

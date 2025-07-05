@@ -4,7 +4,7 @@ import Sidebar from "../Sidebar";
 import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
 
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = "";
 
 // Helper function to get today's date in YYYY-MM-DD format
 const getTodayDateString = () => {

@@ -78,7 +78,7 @@ export default function PublicSignUpPage() {
     
     try {
       // Try the new endpoint first
-      let res = await fetch("http://localhost:5000/api/public-users", {
+      let res = await fetch("/api/public-users", {
         method: "POST",
         body: formData,
       });
@@ -86,7 +86,7 @@ export default function PublicSignUpPage() {
       // If the new endpoint fails, try the old one
       if (!res.ok && res.status === 404) {
         console.log("New endpoint failed with 404, trying old endpoint");
-        res = await fetch("http://localhost:5000/api/add-public", {
+        res = await fetch("/api/add-public", {
           method: "POST",
           body: formData,
         });

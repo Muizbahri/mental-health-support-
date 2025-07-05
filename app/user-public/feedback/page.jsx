@@ -60,7 +60,7 @@ export default function FeedbackPage() {
       if (!token) return;
       
       // Use the correct API endpoint for public user profile
-      fetch(`http://localhost:5000/api/public-users/profile/me`, {
+              fetch(`/api/public-users/profile/me`, {
         headers: { Authorization: `Bearer ${token}` }
       })
         .then(res => res.json())
@@ -122,7 +122,7 @@ export default function FeedbackPage() {
     }
 
     try {
-      const res = await fetch("http://localhost:5000/api/feedbacks", {
+      const res = await fetch("/api/feedbacks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

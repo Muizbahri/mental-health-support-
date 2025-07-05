@@ -523,8 +523,8 @@ export default function PublicDashboard() {
     const fetchProfessionals = async () => {
       try {
         const [counselorsRes, psychiatristsRes] = await Promise.all([
-          fetch("http://localhost:5000/api/counselors"),
-          fetch("http://localhost:5000/api/psychiatrists"),
+                  fetch("/api/counselors"),
+        fetch("/api/psychiatrists"),
         ]);
 
         const counselorsResult = await counselorsRes.json();
@@ -575,7 +575,7 @@ export default function PublicDashboard() {
       const userName = localStorage.getItem("full_name");
       if (userName) {
         try {
-          const res = await fetch(`http://localhost:5000/api/appointments?user=${encodeURIComponent(userName)}`);
+          const res = await fetch(`/api/appointments?user=${encodeURIComponent(userName)}`);
           if (res.ok) {
             const data = await res.json();
             setAppointments(data.data || []);
@@ -590,7 +590,7 @@ export default function PublicDashboard() {
     // Fetch and shuffle materials for recommendations
     const fetchMaterials = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/materials");
+        const res = await fetch("/api/materials");
         const data = await res.json();
         if (data.success) {
           const music = data.data.filter(m => m.type === 'music');
@@ -874,7 +874,7 @@ export default function PublicDashboard() {
                 {professionals.map((pro, i) => (
                   <div key={`${pro.id}-${i}`} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex items-center gap-4 w-72 flex-shrink-0 hover:bg-blue-50 transition-colors">
                     <img
-                      src={pro.profile_image ? `http://localhost:5000/uploads/${pro.profile_image}` : '/default-avatar.png'}
+                      src={pro.profile_image ? `/uploads/${pro.profile_image}` : '/default-avatar.png'}
                       alt={pro.full_name}
                       className="w-[60px] h-[60px] rounded-full object-cover"
                       onError={(e) => {

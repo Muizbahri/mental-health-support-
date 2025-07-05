@@ -158,7 +158,7 @@ function EditModal({ activity, onClose, onSave, isAdd }) {
   );
 }
 
-const BACKEND_URL = typeof window !== 'undefined' ? (window.location.hostname === 'localhost' ? 'http://localhost:5000' : '') : '';
+  const BACKEND_URL = '';
 
 function PDFIframe({ filename }) {
   const [canPreviewPdf, setCanPreviewPdf] = useState(true);

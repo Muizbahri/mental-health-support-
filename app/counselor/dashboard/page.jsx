@@ -135,7 +135,7 @@ export default function CounselorDashboard() {
   // Function to get the correct image source
   const getImageSrc = () => {
     if (profile.profile_image) {
-      return `http://localhost:5000/uploads/${profile.profile_image}`;
+      return `/uploads/${profile.profile_image}`;
     }
     return "/admin-mental.png"; // Default placeholder image
   };
