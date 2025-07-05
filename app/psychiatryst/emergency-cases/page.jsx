@@ -133,7 +133,7 @@ export default function PsychiatristEmergencyCasesPage() {
     
     const token = localStorage.getItem('psychiatrystToken');
     console.log("Using token:", token ? "Token exists" : "No token found");
-    fetch(`http://localhost:5000/api/emergency-cases/psychiatrist/${id}`, {
+    fetch(`/api/emergency-cases/psychiatrist/${id}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => {
@@ -180,7 +180,7 @@ export default function PsychiatristEmergencyCasesPage() {
   async function fetchProfessionals() {
     try {
       const [counselorRes, psychiatristRes] = await Promise.all([
-        fetch("http://localhost:5000/api/counselors").then(res => {
+        fetch("/api/counselors").then(res => {
           if (res.status === 401 || res.status === 403) {
             localStorage.clear();
             router.push("/psychiatryst/login");
@@ -188,7 +188,7 @@ export default function PsychiatristEmergencyCasesPage() {
           }
           return res.json();
         }),
-        fetch("http://localhost:5000/api/psychiatrists").then(res => {
+        fetch("/api/psychiatrists").then(res => {
           if (res.status === 401 || res.status === 403) {
             localStorage.clear();
             router.push("/psychiatryst/login");
@@ -376,10 +376,10 @@ export default function PsychiatristEmergencyCasesPage() {
     
     console.log("Submitting payload:", payload);
     
-    let url = "http://localhost:5000/api/emergency-cases/admin";
+          let url = "/api/emergency-cases/admin";
     let method = "POST";
     if (modalMode === "edit" && current) {
-      url = `http://localhost:5000/api/emergency-cases/${current.id}`;
+              url = `/api/emergency-cases/${current.id}`;
       method = "PUT";
     }
     
@@ -412,7 +412,7 @@ export default function PsychiatristEmergencyCasesPage() {
     if (!window.confirm("Are you sure you want to delete this emergency case?")) return;
     setDeletingId(id);
     const token = localStorage.getItem('psychiatrystToken');
-    const res = await fetch(`http://localhost:5000/api/emergency-cases/${id}`, { 
+    const res = await fetch(`/api/emergency-cases/${id}`, { 
       method: "DELETE",
       headers: { "Authorization": `Bearer ${token}` }
     });

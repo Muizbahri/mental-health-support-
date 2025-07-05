@@ -113,7 +113,7 @@ export default function PsychiatristFeedbackPage() {
         feedback: feedbackText
       };
       
-      const res = await fetch("http://localhost:5000/api/feedbacks", {
+      const res = await fetch("/api/feedbacks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(feedbackData)

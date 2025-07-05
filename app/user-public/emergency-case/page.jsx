@@ -160,7 +160,7 @@ export default function EmergencyCasePage() {
     }
     
     try {
-      const response = await axios.post('http://localhost:5000/api/emergency-cases', {
+              const response = await axios.post('/api/emergency-cases', {
         name_patient: formData.fullName.trim(),
         ic_number: formData.icNumber.trim()
       });
@@ -225,7 +225,7 @@ export default function EmergencyCasePage() {
       }
 
       // Search for emergency hospitals using the coordinates
-      const response = await axios.post('http://localhost:5000/api/emergency_cases/emergency-hospitals/search', {
+              const response = await axios.post('/api/emergency_cases/emergency-hospitals/search', {
         latitude: geoResult.latitude,
         longitude: geoResult.longitude
       });

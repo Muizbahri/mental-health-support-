@@ -223,7 +223,7 @@ export default function PsychiatristAppointmentsPage() {
       return;
     }
     setLoading(true);
-    fetch(`http://localhost:5000/api/psychiatrist-appointments/${psychiatristId}`)
+          fetch(`/api/psychiatrist-appointments/${psychiatristId}`)
       .then(res => {
         // Check if API response indicates authentication failure
         if (res.status === 401 || res.status === 403) {
@@ -362,10 +362,10 @@ export default function PsychiatristAppointmentsPage() {
     
     console.log('Submitting appointment:', payload);
     
-    let url = `http://localhost:5000/api/psychiatrist-appointments/${psychiatristId}`;
+          let url = `/api/psychiatrist-appointments/${psychiatristId}`;
     let method = "POST";
     if (modalMode === "edit" && current) {
-      url = `http://localhost:5000/api/psychiatrist-appointments/${psychiatristId}/${current.id}`;
+              url = `/api/psychiatrist-appointments/${psychiatristId}/${current.id}`;
       method = "PUT";
     }
     
@@ -407,7 +407,7 @@ export default function PsychiatristAppointmentsPage() {
     }
     
     try {
-      const res = await fetch(`http://localhost:5000/api/psychiatrist-appointments/${psychiatristId}/${id}`, { 
+      const res = await fetch(`/api/psychiatrist-appointments/${psychiatristId}/${id}`, { 
         method: "DELETE" 
       });
       

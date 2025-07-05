@@ -54,7 +54,7 @@ export default function ScrapeActivitiesPage() {
   const fetchActivities = async () => {
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:5000/api/activities");
+      const res = await fetch("/api/activities");
       const data = await res.json();
       setActivities(Array.isArray(data.data) ? data.data : []);
     } catch {
@@ -69,14 +69,14 @@ export default function ScrapeActivitiesPage() {
     setLoading(true);
     try {
       if (editItem) {
-        await fetch(`http://localhost:5000/api/activities/${editItem.id}`, {
+        await fetch(`/api/activities/${editItem.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(form),
         });
         setMessage("Activity updated.");
       } else {
-        await fetch("http://localhost:5000/api/activities", {
+        await fetch("/api/activities", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(form),
@@ -96,7 +96,7 @@ export default function ScrapeActivitiesPage() {
     if (!window.confirm('Are you sure to delete this activity?')) return;
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/activities/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/activities/${id}`, { method: "DELETE" });
       if (res.ok) {
         setActivities(activities.filter(activity => activity.id !== id));
         setMessage('Activity deleted.');
@@ -114,7 +114,7 @@ export default function ScrapeActivitiesPage() {
     setScrapeLoading(true);
     setMessage("");
     try {
-      const res = await fetch("http://localhost:5000/api/scrape-activities", {
+      const res = await fetch("/api/scrape-activities", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: scrapeUrl }),

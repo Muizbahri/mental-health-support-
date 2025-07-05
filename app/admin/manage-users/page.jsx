@@ -32,7 +32,7 @@ const sidebarMenu = [
   { icon: <AlertTriangle size={20} />, label: "Manage Emergency Cases", path: "/admin/manage-emergency" },
 ];
 
-const API_BASE = 'http://localhost:5000';
+const API_BASE = '';
 
 export default function ManageUsersPage() {
   const router = useRouter();
@@ -191,7 +191,7 @@ function UserTable({ title, columns, data, onAddNew, onEdit, onDelete }) {
                       {col === "certificate" ? (
                         row[col] ? (
                           <a
-                            href={`http://localhost:5000/uploads/${row[col]}`}
+                            href={`/uploads/${row[col]}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             style={{ color: '#2563eb', textDecoration: 'underline' }}
@@ -204,7 +204,7 @@ function UserTable({ title, columns, data, onAddNew, onEdit, onDelete }) {
                       ) : col === "profile_image" ? (
                         row[col] ? (
                           <img
-                            src={`http://localhost:5000/uploads/${row[col]}`}
+                            src={`/uploads/${row[col]}`}
                             alt="Profile"
                             style={{ width: '32px', height: '32px', borderRadius: '50%' }}
                           />

@@ -29,7 +29,7 @@ export default function AdminProfile() {
   const fetchAdminProfile = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch('http://localhost:5000/api/admin/profile', {
+      const response = await fetch('/api/admin/profile', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -136,7 +136,7 @@ export default function AdminProfile() {
         updateData.newPassword = formData.newPassword;
       }
 
-      const response = await fetch('http://localhost:5000/api/admin/profile', {
+      const response = await fetch('/api/admin/profile', {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -187,7 +187,7 @@ export default function AdminProfile() {
       setDeleting(true);
       try {
         const token = localStorage.getItem('adminToken');
-        const response = await fetch('http://localhost:5000/api/admin/profile', {
+        const response = await fetch('/api/admin/profile', {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`,

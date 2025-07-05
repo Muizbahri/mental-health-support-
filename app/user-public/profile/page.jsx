@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { User, Mail, Lock, Camera, IdCard, Phone, Calendar, Menu, X } from "lucide-react";
 import Sidebar from "../Sidebar";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
 export default function ProfilePage() {
   const router = useRouter();

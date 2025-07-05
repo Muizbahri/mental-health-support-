@@ -42,8 +42,8 @@ function NewCaseModal({ isOpen, onClose, onAdd, loading }) {
     async function fetchProfessionals() {
       try {
         const [counselorRes, psychiatristRes] = await Promise.all([
-          fetch('http://localhost:5000/api/counselors').then(res => res.json()),
-          fetch('http://localhost:5000/api/psychiatrists').then(res => res.json())
+          fetch('/api/counselors').then(res => res.json()),
+          fetch('/api/psychiatrists').then(res => res.json())
         ]);
         setProfessionals({
           counselors: Array.isArray(counselorRes) ? counselorRes : (counselorRes.data || []),
@@ -164,8 +164,8 @@ function EditCaseModal({ isOpen, onClose, onEdit, loading, initialData }) {
     async function fetchProfessionals() {
       try {
         const [counselorRes, psychiatristRes] = await Promise.all([
-          fetch('http://localhost:5000/api/counselors').then(res => res.json()),
-          fetch('http://localhost:5000/api/psychiatrists').then(res => res.json())
+          fetch('/api/counselors').then(res => res.json()),
+          fetch('/api/psychiatrists').then(res => res.json())
         ]);
         setProfessionals({
           counselors: Array.isArray(counselorRes) ? counselorRes : (counselorRes.data || []),
@@ -352,12 +352,12 @@ export default function ManageEmergencyPage() {
   }, [router]);
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/counselors")
+            fetch("/api/counselors")
       .then(res => res.json())
       .then(data => {
         setCounselors(Array.isArray(data) ? data : (data.data || []));
       });
-    fetch("http://localhost:5000/api/psychiatrists")
+          fetch("/api/psychiatrists")
       .then(res => res.json())
       .then(data => {
         setPsychiatrists(Array.isArray(data) ? data : (data.data || []));
@@ -369,7 +369,7 @@ export default function ManageEmergencyPage() {
     setFetchError("");
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch("http://localhost:5000/api/emergency-cases", {
+      const res = await fetch("/api/emergency-cases", {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -406,7 +406,7 @@ export default function ManageEmergencyPage() {
     };
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch('http://localhost:5000/api/emergency-cases/admin', {
+      const res = await fetch('/api/emergency-cases/admin', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -431,7 +431,7 @@ export default function ManageEmergencyPage() {
     if (!window.confirm('Are you sure you want to delete this emergency case?')) return;
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch(`http://localhost:5000/api/emergency-cases/${id}`, {
+      const res = await fetch(`/api/emergency-cases/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -465,7 +465,7 @@ export default function ManageEmergencyPage() {
     };
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch(`http://localhost:5000/api/emergency-cases/${editCaseData.id}`, {
+      const res = await fetch(`/api/emergency-cases/${editCaseData.id}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',

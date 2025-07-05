@@ -43,7 +43,7 @@ export default function FindLocationPage() {
   }, []);
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/counselors")
+            fetch("/api/counselors")
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data.data)) {
@@ -57,7 +57,7 @@ export default function FindLocationPage() {
         console.error("Failed to fetch professionals", err);
         setProfessionals([]);
       });
-    fetch("http://localhost:5000/api/psychiatrists")
+            fetch("/api/psychiatrists")
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data.data)) {

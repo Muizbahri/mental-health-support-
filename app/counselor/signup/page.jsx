@@ -149,7 +149,7 @@ export default function CounselorSignUpPage() {
       formData.append("latitude", form.latitude);
       formData.append("longitude", form.longitude);
       formData.append("password", form.password);
-      const res = await fetch("http://localhost:5000/api/add-counselor", {
+      const res = await fetch("/api/add-counselor", {
         method: "POST",
         body: formData
       });
