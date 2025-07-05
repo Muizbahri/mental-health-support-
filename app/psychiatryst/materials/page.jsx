@@ -2,6 +2,7 @@
 import PsychiatristSidebar from "../Sidebar";
 import { Video, Music, BookOpen, Plus, ExternalLink, Edit, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 const MATERIAL_TYPES = ["video", "music", "article"];
 
@@ -124,23 +125,78 @@ function MaterialModal({ open, onClose, onSave, initial }) {
 }
 
 export default function PsychiatristMaterialsPage() {
+  const router = useRouter();
   const [materials, setMaterials] = useState({ video: [], music: [], article: [] });
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState({ open: false, initial: null });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Authentication check on page load
+  useEffect(() => {
+    const checkAuthentication = () => {
+      try {
+        const user = JSON.parse(localStorage.getItem("psychiatrystUser"));
+        const token = user?.token;
+        
+        if (!user || !token) {
+          // No valid authentication found, redirect to login
+          router.push("/psychiatryst/login");
+          return false;
+        }
+        
+        setIsAuthenticated(true);
+        return true;
+      } catch (error) {
+        console.error("Authentication check failed:", error);
+        router.push("/psychiatryst/login");
+        return false;
+      }
+    };
+
+    if (!checkAuthentication()) {
+      return;
+    }
+
+    // Prevent back button access after logout
+    const handlePopState = () => {
+      const user = JSON.parse(localStorage.getItem("psychiatrystUser"));
+      if (!user || !user.token) {
+        router.push("/psychiatryst/login");
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [router]);
 
   async function fetchMaterials() {
     setLoading(true);
     try {
       const res = await fetch("/api/materials");
+      
+      // Check if API response indicates authentication failure
+      if (res.status === 401 || res.status === 403) {
+        localStorage.clear();
+        router.push("/psychiatryst/login");
+        return;
+      }
+      
       const data = await res.json();
       setMaterials(groupByType(data.data || []));
     } catch (err) {
+      console.error("Error fetching materials:", err);
       setMaterials({ video: [], music: [], article: [] });
     }
     setLoading(false);
   }
 
-  useEffect(() => { fetchMaterials(); }, []);
+  useEffect(() => { 
+    if (!isAuthenticated) return;
+    fetchMaterials(); 
+  }, [isAuthenticated]);
 
   function handleAdd(type) {
     setModal({ open: true, initial: { type } });
@@ -150,25 +206,61 @@ export default function PsychiatristMaterialsPage() {
   }
   async function handleDelete(id) {
     if (!window.confirm("Are you sure you want to delete this material?")) return;
-    await fetch(`/api/materials/${id}`, { method: "DELETE" });
-    fetchMaterials();
+    
+    try {
+      const response = await fetch(`/api/materials/${id}`, { method: "DELETE" });
+      
+      if (response.status === 401 || response.status === 403) {
+        localStorage.clear();
+        router.push("/psychiatryst/login");
+        return;
+      }
+      
+      fetchMaterials();
+    } catch (error) {
+      console.error("Error deleting material:", error);
+    }
   }
   async function handleSave(mat) {
-    if (mat.id) {
-      await fetch(`/api/materials/${mat.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mat)
-      });
-    } else {
-      await fetch("/api/materials", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mat)
-      });
+    try {
+      let response;
+      if (mat.id) {
+        response = await fetch(`/api/materials/${mat.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(mat)
+        });
+      } else {
+        response = await fetch("/api/materials", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(mat)
+        });
+      }
+      
+      if (response.status === 401 || response.status === 403) {
+        localStorage.clear();
+        router.push("/psychiatryst/login");
+        return;
+      }
+      
+      setModal({ open: false, initial: null });
+      fetchMaterials();
+    } catch (error) {
+      console.error("Error saving material:", error);
     }
-    setModal({ open: false, initial: null });
-    fetchMaterials();
+  }
+
+  // Show loading state while checking authentication
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Verifying authentication...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

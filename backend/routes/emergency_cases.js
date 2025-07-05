@@ -1,84 +1,95 @@
 const express = require('express');
 const router = express.Router();
+const emergencyCaseController = require('../controllers/emergencyCaseController');
+const { authenticateToken } = require('../middleware/authMiddleware');
+const db = require('../config/db');
 
-// Wrap database import in try-catch to prevent module loading errors
-let db;
-try {
-  db = require('../config/db');
-} catch (error) {
-  console.error('Failed to load database in emergency_cases route:', error);
-  // Export a router with error handlers
-  router.use('*', (req, res) => {
-    res.status(500).json({ success: false, message: 'Database connection error' });
-  });
-  module.exports = router;
-  return;
-}
+// POST /api/emergency_cases - Create a new emergency case (public route, no auth required)
+router.post('/', emergencyCaseController.createPublicEmergencyCase);
 
-// POST /api/emergency_cases - Create a new emergency case
-router.post('/', async (req, res) => {
+// Search emergency hospitals by coordinates (public route, no auth required)
+router.post('/emergency-hospitals/search', async (req, res) => {
   try {
-    const { name_patient, ic_number, date_time, status, assigned_to, role } = req.body;
-    if (!name_patient || !ic_number || !date_time || !status || !assigned_to || !role) {
-      return res.status(400).json({ success: false, message: 'All fields are required.' });
+    const { latitude, longitude } = req.body;
+
+    if (!latitude || !longitude) {
+      return res.status(400).json({
+        success: false,
+        message: 'Latitude and longitude are required'
+      });
     }
-    const sql = `INSERT INTO emergency_cases (name_patient, ic_number, date_time, status, assigned_to, role) VALUES (?, ?, ?, ?, ?, ?)`;
-    const [result] = await db.query(sql, [name_patient, ic_number, date_time, status, assigned_to, role]);
-    res.status(201).json({ success: true, message: 'Emergency case created successfully', id: result.insertId });
+
+    // Search emergency_hospitals table
+    const [hospitals] = await db.query(`
+      SELECT id, name, address, city, state, phone, latitude, longitude
+      FROM emergency_hospitals
+      WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+    `);
+
+    // Calculate distances using Haversine formula
+    function calcDistance(lat1, lon1, lat2, lon2) {
+      if ((lat1 == lat2) && (lon1 == lon2)) {
+        return 0;
+      }
+      const R = 6371; // Radius of the earth in km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c; // Distance in km
+    }
+
+    // Calculate distances and add to hospitals
+    const hospitalsWithDistance = hospitals.map(hospital => {
+      const distance = calcDistance(
+        parseFloat(latitude),
+        parseFloat(longitude),
+        parseFloat(hospital.latitude),
+        parseFloat(hospital.longitude)
+      );
+      return { ...hospital, distance };
+    });
+
+    // Filter within 50km radius and sort by distance
+    const nearbyHospitals = hospitalsWithDistance
+      .filter(hospital => hospital.distance <= 50)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 10); // Limit to 10 results
+
+    res.json({
+      success: true,
+      hospitals: nearbyHospitals,
+      count: nearbyHospitals.length
+    });
+
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error('Error searching emergency hospitals:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
   }
 });
+
+// Protected routes below (require authentication)
+router.use(authenticateToken);
 
 // GET /api/emergency_cases - List all emergency cases, or filter by assigned_to
-router.get('/', async (req, res) => {
-  try {
-    const { assigned_to } = req.query;
-    let sql = 'SELECT * FROM emergency_cases';
-    const params = [];
-    if (assigned_to) {
-      sql += ' WHERE assigned_to = ?';
-      params.push(assigned_to);
-    }
-    sql += ' ORDER BY date_time DESC';
-    const [rows] = await db.query(sql, params);
-    res.json({ success: true, data: rows });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+router.get('/', emergencyCaseController.getAllEmergencyCases);
 
-// DELETE /api/emergency_cases/:id - Delete an emergency case by ID
-router.delete('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const [result] = await db.query('DELETE FROM emergency_cases WHERE id = ?', [id]);
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ success: false, message: 'Emergency case not found.' });
-    }
-    res.json({ success: true, message: 'Emergency case deleted successfully.' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+// GET /api/emergency-cases/psychiatrist/:id
+router.get('/psychiatrist/:id', emergencyCaseController.getByPsychiatristId);
 
-// PUT /api/emergency_cases/:id - Update an emergency case by ID
-router.put('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name_patient, ic_number, date_time, status, assigned_to, role } = req.body;
-    if (!name_patient || !ic_number || !date_time || !status || !assigned_to || !role) {
-      return res.status(400).json({ success: false, message: 'All fields are required.' });
-    }
-    const sql = `UPDATE emergency_cases SET name_patient=?, ic_number=?, date_time=?, status=?, assigned_to=?, role=? WHERE id=?`;
-    const [result] = await db.query(sql, [name_patient, ic_number, date_time, status, assigned_to, role, id]);
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ success: false, message: 'Emergency case not found.' });
-    }
-    res.json({ success: true, message: 'Emergency case updated successfully.' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+// POST /api/emergency_cases/admin - Create emergency case with full details (admin route)
+router.post('/admin', emergencyCaseController.createEmergencyCase);
+
+// DELETE /api/emergency_cases/:id - Delete an emergency case by ID (protected)
+router.delete('/:id', emergencyCaseController.deleteEmergencyCase);
+
+// PUT /api/emergency_cases/:id - Update an emergency case by ID (protected)
+router.put('/:id', emergencyCaseController.updateEmergencyCase);
 
 module.exports = router; 

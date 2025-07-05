@@ -1,5 +1,5 @@
 "use client";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Menu, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import Sidebar from "../Sidebar";
 
@@ -34,25 +34,52 @@ export default function FeedbackPage() {
   const [message, setMessage] = useState("");
   const [user, setUser] = useState({ full_name: '', user_role: '' });
   const charLimit = 1000;
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    // Fetch logged-in user profile
-    const token = localStorage.getItem("publicToken");
-    if (!token) return;
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    const userId = payload.id;
-    fetch(`http://194.164.148.171:5000/api/users/user-public/profile?id=${userId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setUser({
-            full_name: data.user.full_name,
-            user_role: 'public', // or data.user.user_role if available
-          });
-        }
-      });
+    // Get user information from localStorage first (most reliable)
+    const publicUserData = localStorage.getItem("publicUser");
+    const fullNameFromStorage = localStorage.getItem("full_name");
+    
+    if (publicUserData) {
+      try {
+        const userData = JSON.parse(publicUserData);
+        setUser({
+          full_name: userData.full_name || fullNameFromStorage || '',
+          user_role: 'public'
+        });
+        console.log('Public user loaded from localStorage:', userData.full_name);
+      } catch (err) {
+        console.error("Error parsing publicUser data:", err);
+      }
+    }
+    
+    // Only fetch from API if we don't have user data in localStorage
+    if (!publicUserData) {
+      const token = localStorage.getItem("publicToken");
+      if (!token) return;
+      
+      // Use the correct API endpoint for public user profile
+      fetch(`http://localhost:5000/api/public-users/profile/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          console.log('Profile API response:', data);
+          if (data.success && data.data) {
+            setUser({
+              full_name: data.data.full_name,
+              user_role: 'public'
+            });
+            // Update localStorage with fresh data
+            localStorage.setItem("full_name", data.data.full_name);
+            localStorage.setItem("publicUser", JSON.stringify(data.data));
+          }
+        })
+        .catch(err => {
+          console.error('Profile fetch error:', err);
+        });
+    }
   }, []);
 
   const handleSubmit = async (e) => {
@@ -62,22 +89,47 @@ export default function FeedbackPage() {
       return;
     }
 
-    const fullName = localStorage.getItem("full_name");
-    if (!fullName) {
+    // Try multiple sources to get the correct user name
+    const fullNameFromStorage = localStorage.getItem("full_name");
+    const userDataFromStorage = localStorage.getItem("publicUser");
+    let actualUserName = fullNameFromStorage;
+    
+    // Fallback to user data if direct storage fails
+    if (!actualUserName && userDataFromStorage) {
+      try {
+        const userData = JSON.parse(userDataFromStorage);
+        actualUserName = userData.full_name;
+      } catch (err) {
+        console.error("Error parsing user data:", err);
+      }
+    }
+    
+    // Fallback to the state user if both fail
+    if (!actualUserName && user.full_name) {
+      actualUserName = user.full_name;
+    }
+
+    console.log('Public user feedback submission:', {
+      fullNameFromStorage,
+      actualUserName,
+      userFromState: user.full_name,
+      userRole: 'public'
+    });
+
+    if (!actualUserName) {
       alert("Could not find user information. Please log in again.");
       return;
     }
 
     try {
-      const res = await fetch("http://194.164.148.171:5000/api/feedbacks", {
+      const res = await fetch("http://localhost:5000/api/feedbacks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          full_name: fullName,
+          full_name: actualUserName.trim(),
           user_role: 'public',
           type_of_feedback: type,
           feedback: message,
-          feedback_date: new Date().toISOString().slice(0, 19).replace('T', ' '),
         }),
       });
       const data = await res.json();
@@ -89,15 +141,44 @@ export default function FeedbackPage() {
         throw new Error(data.message || "Failed to submit feedback.");
       }
     } catch (error) {
+      console.error('Feedback submission error:', error);
       alert(`Error: ${error.message}`);
     }
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      <Sidebar activePage="FEEDBACK" />
+    <div className="min-h-screen flex bg-gray-50 relative">
+      {/* Hamburger menu for mobile */}
+      <button
+        className="md:hidden fixed top-4 left-4 z-40 bg-white rounded-full p-2 shadow-lg border border-gray-200"
+        onClick={() => setSidebarOpen(true)}
+        aria-label="Open menu"
+      >
+        <Menu size={28} color="#000" />
+      </button>
+      {/* Sidebar as drawer on mobile, static on desktop */}
+      <div>
+        {/* Mobile Drawer */}
+        <div
+          className={`fixed inset-0 z-50 bg-black/30 transition-opacity duration-200 ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'} md:hidden`}
+          onClick={() => setSidebarOpen(false)}
+        />
+        <aside
+          className={`fixed top-0 left-0 z-50 h-full w-64 bg-white shadow-lg transform transition-transform duration-200 md:static md:translate-x-0 md:block ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:min-h-screen`}
+        >
+          {/* Close button for mobile */}
+          <button
+            className="md:hidden absolute top-4 right-4 z-50 bg-gray-100 rounded-full p-1 border border-gray-300"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close menu"
+          >
+            <X size={24} color="#000" />
+          </button>
+          <Sidebar activePage="FEEDBACK" />
+        </aside>
+      </div>
       {/* Main Content */}
-      <main className="flex-1 p-10">
+      <main className="flex-1 p-4 sm:p-6 md:p-10 transition-all duration-200">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Feedback</h1>
         <p className="text-gray-600 mb-8 text-lg">Your feedback helps us improve our mental health services. Please share your thoughts, suggestions, or report any issues.</p>
         {/* Submit Feedback */}

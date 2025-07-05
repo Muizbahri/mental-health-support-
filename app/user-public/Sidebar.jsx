@@ -61,7 +61,7 @@ function SidebarItem({ icon, label, active, bottom, red }) {
   const bottomClasses = bottom ? "mt-10" : "";
 
   return (
-    <div className={`${baseClasses} ${bottomClasses} ${red ? redClasses : activeClasses}`}>
+    <div className={`${baseClasses} ${bottomClasses} ${red ? redClasses : activeClasses} z-[120]`}>
       {icon}
       <span>{label}</span>
     </div>

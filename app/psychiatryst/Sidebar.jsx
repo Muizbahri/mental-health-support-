@@ -1,7 +1,8 @@
 "use client";
-import { AlertTriangle, ClipboardList, FileText, MessageCircle, UserCircle, BookOpen, LogOut, User, Users, Calendar } from "lucide-react";
+import { AlertTriangle, ClipboardList, FileText, MessageCircle, UserCircle, BookOpen, LogOut, User, Users, Calendar, Brain } from "lucide-react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { useState } from "react";
 
 const menu = [
   { key: "DASHBOARD", label: "Dashboard", icon: <UserCircle size={20} />, href: "/psychiatryst/dashboard" },
@@ -9,7 +10,6 @@ const menu = [
   { key: "APPOINTMENTS", label: "Appointments", icon: <ClipboardList size={20} />, href: "/psychiatryst/appointments" },
   { key: "EMERGENCY", label: "Emergency Cases", icon: <AlertTriangle size={20} />, href: "/psychiatryst/emergency-cases" },
   { key: "REFERRALS", label: "Referral Requests", icon: <FileText size={20} />, href: "/psychiatryst/referral-requests" },
-  { key: "PATIENT_CASES", label: "Patient Cases", icon: <Users size={20} />, href: "/psychiatryst/patient-cases" },
   { key: "MATERIALS", label: "Materials Shared", icon: <BookOpen size={20} />, href: "/psychiatryst/materials" },
   { key: "FEEDBACK", label: "Feedback", icon: <MessageCircle size={20} />, href: "/psychiatryst/feedback" },
 ];
@@ -17,41 +17,80 @@ const menu = [
 export default function PsychiatristSidebar({ activePage }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
 
   const handleLogout = () => {
+    // Clear all possible authentication data from localStorage
     localStorage.removeItem("psychiatrystToken");
     localStorage.removeItem("psychiatrystUser");
+    localStorage.removeItem("psychiatristToken");
+    localStorage.removeItem("psychiatristUser");
     localStorage.removeItem("full_name");
+    localStorage.removeItem("email");
+    localStorage.removeItem("user_id");
+    localStorage.removeItem("role");
+    
+    // Clear all sessionStorage as well
+    sessionStorage.clear();
+    
+    // Clear any cookies if they exist
+    document.cookie.split(";").forEach(function(c) { 
+      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+    });
+    
+    // Force page to reload and prevent back button access
+    window.history.replaceState(null, null, '/psychiatryst/login');
+    
+    // Navigate to login page
     router.push("/psychiatryst/login");
+    
+    // Force a hard refresh to ensure all cached data is cleared
+    setTimeout(() => {
+      window.location.href = "/psychiatryst/login";
+    }, 100);
   };
 
   return (
-    <aside className="w-64 bg-white shadow-lg flex flex-col justify-between py-8 px-4 min-h-screen">
-      <div>
-        <div className="flex items-center gap-3 mb-10 px-2">
-          <div className="bg-teal-100 p-2 rounded-xl">
-            <UserCircle className="text-teal-500" size={28} />
+    <>
+      {/* Mobile menu button */}
+      <button className="md:hidden fixed top-4 left-4 z-50 bg-teal-600 text-white p-2 rounded-lg shadow-lg" onClick={() => setOpen(true)}>
+        <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+      </button>
+      {/* Sidebar */}
+      <aside className={`fixed md:static top-0 left-0 h-full w-64 bg-white shadow-lg z-40 transition-transform duration-300 ${open ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`} style={{maxWidth:'100vw'}}>
+        <div className="flex flex-col justify-between h-full py-8 px-4">
+          <div>
+            <div className="flex items-center gap-3 mb-10 px-2">
+              <div className="bg-teal-100 p-2 rounded-xl">
+                <Brain className="text-teal-500" size={28} />
+              </div>
+              <span className="font-bold text-xl text-gray-800 leading-tight">MENTAL HEALTH <span className="font-normal">CARE</span></span>
+              <button className="md:hidden ml-auto text-gray-500" onClick={() => setOpen(false)}>
+                <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+            <nav className="flex flex-col gap-2">
+              {menu.map((item) => (
+                <Link key={item.key} href={item.href} tabIndex={0} className="outline-none focus:ring-2 focus:ring-teal-400 rounded-lg">
+                  <SidebarItem
+                    icon={item.icon}
+                    label={item.label}
+                    active={pathname === item.href}
+                  />
+                </Link>
+              ))}
+            </nav>
           </div>
-          <span className="font-bold text-xl text-gray-800 leading-tight">MENTAL HEALTH <span className="font-normal">CARE</span></span>
+          <div className="mb-2">
+            <div onClick={handleLogout}>
+              <SidebarItem icon={<LogOut size={20} />} label="Log Out" bottom red />
+            </div>
+          </div>
         </div>
-        <nav className="flex flex-col gap-2">
-          {menu.map((item) => (
-            <Link key={item.key} href={item.href} tabIndex={0} className="outline-none focus:ring-2 focus:ring-teal-400 rounded-lg">
-              <SidebarItem
-                icon={item.icon}
-                label={item.label}
-                active={pathname === item.href}
-              />
-            </Link>
-          ))}
-        </nav>
-      </div>
-      <div className="mb-2">
-        <div onClick={handleLogout}>
-          <SidebarItem icon={<LogOut size={20} />} label="Log Out" bottom red />
-        </div>
-      </div>
-    </aside>
+      </aside>
+      {/* Overlay for mobile */}
+      {open && <div className="fixed inset-0 bg-white/80 z-30 md:hidden" onClick={() => setOpen(false)}></div>}
+    </>
   );
 }
 

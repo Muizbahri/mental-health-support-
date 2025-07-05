@@ -104,17 +104,20 @@ export default function CounselorSignUpPage() {
       setMapPos({ lat: parseFloat(lat), lon: parseFloat(lon) });
       setMarkerPos({ lat: parseFloat(lat), lon: parseFloat(lon) });
       setMapKey(k => k + 1);
-      // Reverse geocode
+      // Reverse geocode to update address field, not location field
       const addr = await reverseGeocode(lat, lon);
-      setForm(f => ({ ...f, location: addr }));
+      setForm(f => ({ ...f, address: addr }));
     }
   }
 
-  function handleMapMove(lat, lon) {
+  async function handleMapMove(lat, lon) {
     setForm(f => ({ ...f, latitude: lat, longitude: lon }));
     setMapPos({ lat, lon });
     setMarkerPos({ lat, lon });
     setMapKey(k => k + 1);
+    // Reverse geocode to update address field when marker is moved
+    const addr = await reverseGeocode(lat, lon);
+    setForm(f => ({ ...f, address: addr }));
   }
 
   async function handleSubmit(e) {
@@ -146,7 +149,7 @@ export default function CounselorSignUpPage() {
       formData.append("latitude", form.latitude);
       formData.append("longitude", form.longitude);
       formData.append("password", form.password);
-      const res = await fetch("http://194.164.148.171:5000/api/add-counselor", {
+      const res = await fetch("http://localhost:5000/api/add-counselor", {
         method: "POST",
         body: formData
       });
@@ -391,12 +394,22 @@ export default function CounselorSignUpPage() {
             </div>
             <button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition disabled:opacity-60 mt-2"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition"
               disabled={loading}
             >
               {loading ? "Signing Up..." : "Sign Up"}
             </button>
           </form>
+          <div className="flex justify-center mt-6">
+            <button
+              className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium bg-white bg-opacity-80 px-4 py-2 rounded-lg shadow transition"
+              onClick={() => router.push('/counselor/login')}
+              type="button"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+              Back to Counselor Login
+            </button>
+          </div>
         </div>
       </div>
     </div>

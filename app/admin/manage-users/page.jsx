@@ -19,8 +19,9 @@ import {
   MoreVertical,
   Search,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import toast from 'react-hot-toast';
+import AdminSidebar from '../Sidebar';
 
 const sidebarMenu = [
   { icon: <Home size={20} />, label: "Dashboard", path: "/admin/dashboard" },
@@ -30,6 +31,8 @@ const sidebarMenu = [
   { icon: <Calendar size={20} />, label: "Manage Appointments", path: "/admin/manage-appointments" },
   { icon: <AlertTriangle size={20} />, label: "Manage Emergency Cases", path: "/admin/manage-emergency" },
 ];
+
+const API_BASE = 'http://localhost:5000';
 
 export default function ManageUsersPage() {
   const router = useRouter();
@@ -49,17 +52,27 @@ export default function ManageUsersPage() {
   const fetchData = async () => {
     try {
       const [psychiatristsRes, counselorsRes, publicUsersRes] = await Promise.all([
-        fetch("http://194.164.148.171:5000/api/psychiatrists"),
-        fetch("http://194.164.148.171:5000/api/counselors"),
-        fetch("http://194.164.148.171:5000/api/users/public")
+        fetch(`${API_BASE}/api/psychiatrists`),
+        fetch(`${API_BASE}/api/counselors`),
+        fetch(`${API_BASE}/api/public-users`),
       ]);
-      const psychiatristsData = await psychiatristsRes.json();
-      const counselorsData = await counselorsRes.json();
-      const publicUsersData = await publicUsersRes.json();
+      const checkJson = async (res) => {
+        const contentType = res.headers.get('content-type');
+        if (!res.ok || !contentType || !contentType.includes('application/json')) {
+          throw new Error('Server error: Not a valid JSON response.');
+        }
+        return res.json();
+      };
+      const psychiatristsData = await checkJson(psychiatristsRes);
+      const counselorsData = await checkJson(counselorsRes);
+      const publicUsersData = await checkJson(publicUsersRes);
       
-      if (psychiatristsData.success) setPsychiatrists(psychiatristsData.data);
-      if (counselorsData.success) setCounselors(counselorsData.data);
-      if (publicUsersData.success) setPublicUsers(publicUsersData.data);
+      setPsychiatrists(Array.isArray(psychiatristsData) ? psychiatristsData : (psychiatristsData.data || []));
+      setCounselors(Array.isArray(counselorsData) ? counselorsData : (counselorsData.data || []));
+      setPublicUsers(Array.isArray(publicUsersData) ? publicUsersData : (publicUsersData.data || []));
+      console.log("Psychiatrists:", psychiatristsData);
+      console.log("Counselors:", counselorsData);
+      console.log("PublicUsers:", publicUsersData);
       
     } catch (err) {
       console.error("Error fetching data", err);
@@ -76,52 +89,18 @@ export default function ManageUsersPage() {
 
   async function handleDelete(type, id) {
     const endpoint = {
-      public: `/api/delete-public/${id}`,
-      counselor: `/api/delete-counselor/${id}`,
-      psychiatrist: `/api/delete-psychiatrist/${id}`
+      public: `/api/public-users/${id}`,
+      counselor: `/api/counselors/${id}`,
+      psychiatrist: `/api/psychiatrists/${id}`
     }[type];
-    await fetch(endpoint, { method: "DELETE" });
+    await fetch(`${API_BASE}${endpoint}`, { method: "DELETE" });
     fetchData();
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-tr from-blue-50 to-pink-50 flex overflow-x-hidden">
-      {/* Sidebar */}
-      <aside className="w-48 bg-white rounded-xl shadow-lg m-2 flex flex-col p-3 justify-between">
-        <div>
-          <div className="flex items-center mb-4">
-            <Image src="/brain-logo.png" width={24} height={24} alt="Logo" className="mr-1.5" />
-            <span className="font-semibold text-sm text-gray-700">MENTAL HEALTH CARE</span>
-          </div>
-          <nav>
-            <ul className="space-y-0.5">
-              {sidebarMenu.map((item, idx) => (
-                <li key={item.label}>
-                  <button
-                    className={`flex items-center w-full px-4 py-2 rounded-lg text-gray-700 hover:bg-blue-50 transition font-medium ${item.label === "Manage Users" ? 'bg-blue-50' : ''}`}
-                    onClick={() => router.push(item.path)}
-                  >
-                    {item.icon}
-                    <span className="ml-3">{item.label}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </div>
-        <button
-          className="flex items-center gap-2 mt-8 px-4 py-2 rounded-lg text-red-600 hover:bg-red-50 font-medium transition"
-          onClick={() => {
-            localStorage.removeItem('adminToken');
-            router.push('/admin/login');
-          }}
-        >
-          <LogOut size={20} />
-          Log Out
-        </button>
-      </aside>
-      {/* Main Content */}
-      <main className="flex-1 px-8 py-6 overflow-y-auto">
+    <div className="h-screen overflow-y-auto min-h-screen bg-neutral-50 flex">
+      <AdminSidebar />
+      <main className="flex-1 p-8 space-y-8">
         <h1 className="text-2xl font-bold mb-8 text-gray-800">Manage Users</h1>
         <div className="space-y-8">
           <UserTable
@@ -212,7 +191,7 @@ function UserTable({ title, columns, data, onAddNew, onEdit, onDelete }) {
                       {col === "certificate" ? (
                         row[col] ? (
                           <a
-                            href={`http://194.164.148.171:5000/uploads/${row[col]}`}
+                            href={`http://localhost:5000/uploads/${row[col]}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             style={{ color: '#2563eb', textDecoration: 'underline' }}
@@ -225,7 +204,7 @@ function UserTable({ title, columns, data, onAddNew, onEdit, onDelete }) {
                       ) : col === "profile_image" ? (
                         row[col] ? (
                           <img
-                            src={`http://194.164.148.171:5000/uploads/${row[col]}`}
+                            src={`http://localhost:5000/uploads/${row[col]}`}
                             alt="Profile"
                             style={{ width: '32px', height: '32px', borderRadius: '50%' }}
                           />
@@ -303,33 +282,64 @@ function UserModal({ type, user, onClose }) {
   }, [user]);
 
   const [errors, setErrors] = useState({});
-  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const [isLoadingGeo, setIsLoadingGeo] = useState(false);
+  const [geoError, setGeoError] = useState("");
+  const lastGeoSource = useRef(null); // 'address' | 'latlng' | null
+  const debounceTimer = useRef(null);
 
-  async function handleLocationChange(e) {
-    const location = e.target.value;
-    setForm(f => ({ ...f, location }));
-
-    if (location.length > 3) {
-      setIsLoadingLocation(true);
-      try {
-        const res = await fetch(
-          `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(location)}&apiKey=${process.env.NEXT_PUBLIC_GEOAPIFY_KEY}`
-        );
-        const data = await res.json();
-        const result = data.features?.[0];
-        if (result && result.geometry?.coordinates) {
-          const [lng, lat] = result.geometry.coordinates;
-          setForm(f => ({
-            ...f,
-            latitude: lat.toString(),
-            longitude: lng.toString()
-          }));
-        }
-      } catch (error) {
-        console.error('Error fetching location data:', error);
-      } finally {
-        setIsLoadingLocation(false);
+  // --- Two-way geocoding logic for address <-> lat/lng ---
+  async function geocodeAddress(address) {
+    setIsLoadingGeo(true);
+    setGeoError("");
+    try {
+      const res = await fetch(`https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(address)}&apiKey=${process.env.NEXT_PUBLIC_GEOAPIFY_KEY}`);
+      const data = await res.json();
+      const result = data.features?.[0];
+      if (result && result.geometry?.coordinates) {
+        const [lng, lat] = result.geometry.coordinates;
+        setForm(f => ({ ...f, latitude: lat.toString(), longitude: lng.toString() }));
+        setGeoError("");
+      } else {
+        setGeoError("Address not found");
       }
+    } catch {
+      setGeoError("Address not found");
+    } finally {
+      setIsLoadingGeo(false);
+    }
+  }
+
+  async function reverseGeocodeLatLng(lat, lng) {
+    setIsLoadingGeo(true);
+    setGeoError("");
+    try {
+      const res = await fetch(`https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lng}&apiKey=${process.env.NEXT_PUBLIC_GEOAPIFY_KEY}`);
+      const data = await res.json();
+      const result = data.features?.[0];
+      if (result && result.properties?.formatted) {
+        setForm(f => ({ ...f, address: result.properties.formatted }));
+        setGeoError("");
+      } else {
+        setGeoError("Address not found");
+      }
+    } catch {
+      setGeoError("Address not found");
+    } finally {
+      setIsLoadingGeo(false);
+    }
+  }
+
+  function handleAddressBlur() {
+    if (form.address && form.address.length > 3) {
+      lastGeoSource.current = "address";
+      geocodeAddress(form.address);
+    }
+  }
+
+  function handleLatLngBlur() {
+    if (form.latitude && form.longitude) {
+      lastGeoSource.current = "latlng";
+      reverseGeocodeLatLng(form.latitude, form.longitude);
     }
   }
 
@@ -339,13 +349,11 @@ function UserModal({ type, user, onClose }) {
       ...f,
       ic_number: ic
     }));
-
     if (/^\d{6}/.test(ic)) {
       const year = parseInt(ic.substring(0, 2), 10);
       const month = parseInt(ic.substring(2, 4), 10) - 1;
       const day = parseInt(ic.substring(4, 6), 10);
       const fullYear = year >= 0 && year <= 24 ? 2000 + year : 1900 + year;
-
       const birthDate = new Date(fullYear, month, day);
       const today = new Date();
       let age = today.getFullYear() - birthDate.getFullYear();
@@ -353,7 +361,6 @@ function UserModal({ type, user, onClose }) {
       if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
         age--;
       }
-
       setForm(f => ({
         ...f,
         age: age.toString()
@@ -363,17 +370,10 @@ function UserModal({ type, user, onClose }) {
 
   function handleChange(e) {
     const { name, value, type: inputType, files } = e.target;
-    
     if (name === 'ic_number') {
       handleICChange(e);
       return;
     }
-
-    if (name === 'location' && (type === 'counselor' || type === 'psychiatrist')) {
-      handleLocationChange(e);
-      return;
-    }
-
     setForm(f => ({
       ...f,
       [name]: inputType === "file" ? files[0] : value
@@ -397,14 +397,14 @@ function UserModal({ type, user, onClose }) {
     const isEdit = !!user;
     const endpoint = isEdit
       ? {
-          public: `/api/update-public/${user.id}`,
-          counselor: `/api/update-counselor/${user.id}`,
-          psychiatrist: `/api/update-psychiatrist/${user.id}`
+          public: `/api/public-users/${user.id}`,
+          counselor: `/api/counselors/${user.id}`,
+          psychiatrist: `/api/psychiatrists/${user.id}`
         }[type]
       : {
-          public: '/api/add-public',
-          counselor: '/api/add-counselor',
-          psychiatrist: '/api/add-psychiatrist'
+          public: '/api/public-users',
+          counselor: '/api/counselors',
+          psychiatrist: '/api/psychiatrists'
         }[type];
     const method = isEdit ? 'PUT' : 'POST';
     const formData = new FormData();
@@ -415,7 +415,7 @@ function UserModal({ type, user, onClose }) {
     });
     const loadingToast = toast.loading(isEdit ? 'Updating user...' : 'Adding user...');
     try {
-      const res = await fetch(`http://194.164.148.171:5000${endpoint}`, {
+      const res = await fetch(`${API_BASE}${endpoint}`, {
         method,
         body: formData
       });
@@ -445,8 +445,11 @@ function UserModal({ type, user, onClose }) {
               <div key={f.name}>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {f.label}
-                  {f.name === 'location' && (type === 'counselor' || type === 'psychiatrist') && isLoadingLocation && (
-                    <span className="ml-2 text-xs text-blue-600">Loading coordinates...</span>
+                  {((f.name === 'address' || f.name === 'latitude' || f.name === 'longitude') && isLoadingGeo) && (
+                    <span className="ml-2 text-xs text-blue-600">Loading...</span>
+                  )}
+                  {((f.name === 'address' || f.name === 'latitude' || f.name === 'longitude') && geoError && !isLoadingGeo) && (
+                    <span className="ml-2 text-xs text-red-600">{geoError}</span>
                   )}
                 </label>
                 {f.type === "file" ? (
@@ -455,6 +458,36 @@ function UserModal({ type, user, onClose }) {
                     name={f.name}
                     onChange={handleChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-black file:text-black"
+                  />
+                ) : f.name === 'address' ? (
+                  <input
+                    type="text"
+                    name="address"
+                    value={form.address || ''}
+                    onChange={handleChange}
+                    onBlur={handleAddressBlur}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-black placeholder:text-gray-500"
+                    required={f.required}
+                  />
+                ) : f.name === 'latitude' ? (
+                  <input
+                    type="number"
+                    name="latitude"
+                    value={form.latitude || ''}
+                    onChange={handleChange}
+                    onBlur={handleLatLngBlur}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-black placeholder:text-gray-500"
+                    required={f.required}
+                  />
+                ) : f.name === 'longitude' ? (
+                  <input
+                    type="number"
+                    name="longitude"
+                    value={form.longitude || ''}
+                    onChange={handleChange}
+                    onBlur={handleLatLngBlur}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-black placeholder:text-gray-500"
+                    required={f.required}
                   />
                 ) : (
                   <input

@@ -22,7 +22,7 @@ export default function PsychiatristLoginPage() {
     }
     setLoading(true);
     try {
-      const res = await fetch("http://194.164.148.171:5000/api/psychiatrists/login", {
+      const res = await fetch("http://localhost:5000/api/psychiatrists/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -41,9 +41,22 @@ export default function PsychiatristLoginPage() {
         return;
       }
       if (data.success) {
-        localStorage.setItem("psychiatrystUser", JSON.stringify(data.user));
+        // Store user data consistently in localStorage
+        const userData = {
+          id: data.user.id,
+          full_name: data.user.full_name,
+          email: data.user.email,
+          token: data.token
+        };
+        
+        console.log("Storing psychiatrist user data:", userData);
+        
+        // Store with both keys for backward compatibility
+        localStorage.setItem("psychiatristUser", JSON.stringify(userData));
+        localStorage.setItem("psychiatrystUser", JSON.stringify(userData));
         localStorage.setItem("psychiatrystToken", data.token || "");
-        localStorage.setItem("full_name", data.user.full_name.trim());
+        localStorage.setItem("full_name", data.user.full_name?.trim() || "");
+        
         router.push("/psychiatryst/dashboard");
       } else {
         setError(data.message || "Invalid email or password.");
@@ -56,16 +69,16 @@ export default function PsychiatristLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-tr from-teal-50 to-pink-50 relative">
-      <div className="absolute top-0 left-0 p-8 flex items-center">
+    <div className="min-h-screen w-full flex items-center justify-center bg-white relative px-2">
+      <div className="absolute top-0 left-0 p-4 sm:p-8 flex items-center">
         <Image src="/brain-logo.png" width={40} height={40} alt="Logo" className="mr-3" />
-        <span className="font-semibold text-xl text-gray-700">MENTAL HEALTH CARE</span>
+        <span className="font-semibold text-lg sm:text-xl text-gray-700">MENTAL HEALTH CARE</span>
       </div>
       <div className="flex flex-col items-center justify-center w-full">
-        <div className="bg-white rounded-3xl shadow-xl px-8 py-10 w-full max-w-md mt-24">
-          <h1 className="text-4xl font-bold mb-6 text-center text-gray-800">Psychiatrist Login</h1>
+        <div className="bg-white rounded-3xl shadow-xl px-4 py-6 sm:px-8 sm:py-10 w-full max-w-md mt-24">
+          <h1 className="text-2xl sm:text-4xl font-bold mb-6 text-center text-gray-800">Psychiatrist Login</h1>
           <div className="mb-6">
-            <span className="block text-xl font-semibold text-gray-700 mb-4">User Login</span>
+            <span className="block text-lg sm:text-xl font-semibold text-gray-700 mb-4">User Login</span>
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />

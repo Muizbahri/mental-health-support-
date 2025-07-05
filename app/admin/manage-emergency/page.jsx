@@ -3,6 +3,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Home, Users, BookOpen, MessageCircle, AlertTriangle, LogOut, Search, Filter, Eye, Edit, Trash2, Plus, User, Calendar, ChevronDown, FileText, X } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
+import AdminSidebar from '../Sidebar';
 
 const sidebarMenu = [
   { icon: <Home size={20} />, label: "Dashboard", path: "/admin/dashboard" },
@@ -41,12 +42,12 @@ function NewCaseModal({ isOpen, onClose, onAdd, loading }) {
     async function fetchProfessionals() {
       try {
         const [counselorRes, psychiatristRes] = await Promise.all([
-          fetch('/api/counselors').then(res => res.json()),
-          fetch('/api/psychiatrists').then(res => res.json())
+          fetch('http://localhost:5000/api/counselors').then(res => res.json()),
+          fetch('http://localhost:5000/api/psychiatrists').then(res => res.json())
         ]);
         setProfessionals({
-          counselors: counselorRes.data || [],
-          psychiatrists: psychiatristRes.data || []
+          counselors: Array.isArray(counselorRes) ? counselorRes : (counselorRes.data || []),
+          psychiatrists: Array.isArray(psychiatristRes) ? psychiatristRes : (psychiatristRes.data || [])
         });
       } catch (err) {
         console.error("Failed to fetch professionals:", err);
@@ -59,12 +60,29 @@ function NewCaseModal({ isOpen, onClose, onAdd, loading }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.ic || !formData.date || !formData.status || !formData.assigned || !formData.role) {
+    const isFormValid = (
+      formData.name?.trim() &&
+      formData.ic?.trim() &&
+      formData.date?.trim() &&
+      formData.status?.trim() &&
+      formData.assigned?.trim() &&
+      formData.role?.trim()
+    );
+    if (!isFormValid) {
       setError("All fields are required.");
       return;
     }
     setError("");
     onAdd(formData);
+  };
+
+  // Helper to get min value for datetime-local (today, 00:00)
+  const getMinDateTime = () => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}T00:00`;
   };
 
   if (!isOpen) return null;
@@ -73,7 +91,7 @@ function NewCaseModal({ isOpen, onClose, onAdd, loading }) {
       <div className="bg-white rounded-xl shadow-2xl p-4 w-full max-w-sm mx-2">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-gray-900">New Emergency Case</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 transition p-1 hover:bg-gray-100 rounded-full"><X size={22} /></button>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 transition p-1 hover:bg-gray-100 rounded-full"><X size={22} color='#000' /></button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -86,11 +104,11 @@ function NewCaseModal({ isOpen, onClose, onAdd, loading }) {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Date/Time</label>
-            <input type="datetime-local" required value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500" />
+            <input type="datetime-local" required value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} min={getMinDateTime()} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Status</label>
-            <select required value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500">
+            <select value={formData.status ?? ""} onChange={e => setFormData({ ...formData, status: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500">
               <option value="In Progress">In Progress</option>
               <option value="Resolved">Resolved</option>
               <option value="Solved">Solved</option>
@@ -99,8 +117,7 @@ function NewCaseModal({ isOpen, onClose, onAdd, loading }) {
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Assigned To</label>
             <select
-              required
-              value={formData.assigned}
+              value={formData.assigned ?? ""}
               onChange={e => setFormData({ ...formData, assigned: e.target.value })}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
               disabled={!formData.role}
@@ -113,7 +130,9 @@ function NewCaseModal({ isOpen, onClose, onAdd, loading }) {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Role</label>
-            <select required value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500">
+            <select value={formData.role ?? ""} onChange={e => {
+              setFormData({ ...formData, role: e.target.value, assigned: "" });
+            }} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500">
               <option value="Counselor">Counselor</option>
               <option value="Psychiatrist">Psychiatrist</option>
             </select>
@@ -130,7 +149,7 @@ function NewCaseModal({ isOpen, onClose, onAdd, loading }) {
 }
 
 function EditCaseModal({ isOpen, onClose, onEdit, loading, initialData }) {
-  const [formData, setFormData] = useState(initialData || {
+  const [formData, setFormData] = useState({
     name: '',
     ic: '',
     date: '',
@@ -145,12 +164,12 @@ function EditCaseModal({ isOpen, onClose, onEdit, loading, initialData }) {
     async function fetchProfessionals() {
       try {
         const [counselorRes, psychiatristRes] = await Promise.all([
-          fetch('/api/counselors').then(res => res.json()),
-          fetch('/api/psychiatrists').then(res => res.json())
+          fetch('http://localhost:5000/api/counselors').then(res => res.json()),
+          fetch('http://localhost:5000/api/psychiatrists').then(res => res.json())
         ]);
         setProfessionals({
-          counselors: counselorRes.data || [],
-          psychiatrists: psychiatristRes.data || []
+          counselors: Array.isArray(counselorRes) ? counselorRes : (counselorRes.data || []),
+          psychiatrists: Array.isArray(psychiatristRes) ? psychiatristRes : (psychiatristRes.data || [])
         });
       } catch (err) {
         console.error("Failed to fetch professionals:", err);
@@ -164,24 +183,73 @@ function EditCaseModal({ isOpen, onClose, onEdit, loading, initialData }) {
   useEffect(() => {
     if (initialData) {
       setFormData({
-        name: initialData.name_patient,
-        ic: initialData.ic_number,
+        name: initialData.name_patient || '',
+        ic: initialData.ic_number || '',
         date: initialData.date_time ? initialData.date_time.replace(' ', 'T').slice(0, 16) : '',
-        status: initialData.status,
-        assigned: initialData.assigned_to,
-        role: initialData.role,
+        status: initialData.status || 'In Progress',
+        assigned: initialData.assigned_to || '',
+        role: initialData.role || 'Counselor',
       });
+      // Clear any previous error when modal opens with new data
+      setError('');
     }
   }, [initialData, isOpen]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.ic || !formData.date || !formData.status || !formData.assigned || !formData.role) {
+    // Debug: log all field values
+    console.log('Form data before validation:', {
+      name: formData.name,
+      ic: formData.ic,
+      date: formData.date,
+      status: formData.status,
+      assigned: formData.assigned,
+      role: formData.role
+    });
+    
+    // Helper function to safely check if a field is valid
+    const isValidField = (value) => {
+      return value != null && typeof value === 'string' && value.trim() !== '';
+    };
+    
+    // Debug: log validation results for each field
+    const fieldValidations = {
+      name: isValidField(formData.name),
+      ic: isValidField(formData.ic),
+      date: isValidField(formData.date),
+      status: isValidField(formData.status),
+      assigned: isValidField(formData.assigned),
+      role: isValidField(formData.role)
+    };
+    
+    console.log('Field validations:', fieldValidations);
+    
+    const isFormValid = (
+      fieldValidations.name &&
+      fieldValidations.ic &&
+      fieldValidations.date &&
+      fieldValidations.status &&
+      fieldValidations.assigned &&
+      fieldValidations.role
+    );
+    
+    console.log('Form is valid:', isFormValid);
+    
+    if (!isFormValid) {
       setError('All fields are required.');
       return;
     }
     setError('');
     onEdit(formData);
+  };
+
+  // Helper to get min value for datetime-local (today, 00:00)
+  const getMinDateTime = () => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}T00:00`;
   };
 
   if (!isOpen) return null;
@@ -190,7 +258,7 @@ function EditCaseModal({ isOpen, onClose, onEdit, loading, initialData }) {
       <div className="bg-white rounded-xl shadow-2xl p-4 w-full max-w-sm mx-2">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-gray-900">Edit Emergency Case</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 transition p-1 hover:bg-gray-100 rounded-full"><X size={22} /></button>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 transition p-1 hover:bg-gray-100 rounded-full"><X size={22} color='#000' /></button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -203,11 +271,11 @@ function EditCaseModal({ isOpen, onClose, onEdit, loading, initialData }) {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Date/Time</label>
-            <input type="datetime-local" required value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500" />
+            <input type="datetime-local" required value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} min={getMinDateTime()} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Status</label>
-            <select required value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500">
+            <select value={formData.status ?? ""} onChange={e => setFormData({ ...formData, status: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500">
               <option value="In Progress">In Progress</option>
               <option value="Resolved">Resolved</option>
               <option value="Solved">Solved</option>
@@ -216,21 +284,25 @@ function EditCaseModal({ isOpen, onClose, onEdit, loading, initialData }) {
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Assigned To</label>
             <select
-              required
-              value={formData.assigned}
+              value={formData.assigned ?? ""}
               onChange={e => setFormData({ ...formData, assigned: e.target.value })}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
               disabled={!formData.role}
             >
               <option value="">Select a professional</option>
-              {(formData.role === 'Counselor' ? professionals.counselors : professionals.psychiatrists).map(p => (
-                <option key={p.id} value={p.full_name} className="font-semibold text-gray-800">{p.full_name}</option>
+              {formData.role === "Counselor" && professionals.counselors.map(c => (
+                <option key={c.id} value={c.full_name}>{c.full_name}</option>
+              ))}
+              {formData.role === "Psychiatrist" && professionals.psychiatrists.map(p => (
+                <option key={p.id} value={p.full_name}>{p.full_name}</option>
               ))}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Role</label>
-            <select required value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500">
+            <select value={formData.role ?? ""} onChange={e => {
+              setFormData({ ...formData, role: e.target.value, assigned: "" });
+            }} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500">
               <option value="Counselor">Counselor</option>
               <option value="Psychiatrist">Psychiatrist</option>
             </select>
@@ -269,6 +341,8 @@ export default function ManageEmergencyPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editModalLoading, setEditModalLoading] = useState(false);
   const [editCaseData, setEditCaseData] = useState(null);
+  const [counselors, setCounselors] = useState([]);
+  const [psychiatrists, setPsychiatrists] = useState([]);
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
@@ -277,16 +351,36 @@ export default function ManageEmergencyPage() {
     }
   }, [router]);
 
+  useEffect(() => {
+    fetch("http://localhost:5000/api/counselors")
+      .then(res => res.json())
+      .then(data => {
+        setCounselors(Array.isArray(data) ? data : (data.data || []));
+      });
+    fetch("http://localhost:5000/api/psychiatrists")
+      .then(res => res.json())
+      .then(data => {
+        setPsychiatrists(Array.isArray(data) ? data : (data.data || []));
+      });
+  }, []);
+
   const fetchCases = async () => {
     setFetching(true);
     setFetchError("");
     try {
-      const res = await fetch('http://194.164.148.171:5000/api/emergency_cases');
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch("http://localhost:5000/api/emergency-cases", {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       const data = await res.json();
-      if (data.success) {
+      console.log("Emergency Cases API response:", data);
+      if (data.success && Array.isArray(data.data)) {
         setCases(data.data);
+      } else if (Array.isArray(data)) {
+        setCases(data);
       } else {
-        setFetchError('Failed to load emergency cases.');
+        setCases([]);
+        setFetchError("Failed to load emergency cases.");
       }
     } catch (err) {
       setFetchError('Failed to load emergency cases.');
@@ -300,18 +394,24 @@ export default function ManageEmergencyPage() {
 
   const handleAddCase = async (formData) => {
     setModalLoading(true);
+    // Convert datetime-local value to 'YYYY-MM-DD HH:mm:ss' string
+    const dateTimeStr = formData.date.replace('T', ' ') + ':00';
     const sendData = {
       name_patient: formData.name,
       ic_number: formData.ic,
-      date_time: formData.date.replace('T', ' ') + ':00',
+      date_time: dateTimeStr,
       status: formData.status,
       assigned_to: formData.assigned,
       role: formData.role,
     };
     try {
-      const res = await fetch('http://194.164.148.171:5000/api/emergency_cases', {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch('http://localhost:5000/api/emergency-cases/admin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(sendData),
       });
       const data = await res.json();
@@ -330,8 +430,10 @@ export default function ManageEmergencyPage() {
   const handleDeleteCase = async (id) => {
     if (!window.confirm('Are you sure you want to delete this emergency case?')) return;
     try {
-      const res = await fetch(`http://194.164.148.171:5000/api/emergency_cases/${id}`, {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`http://localhost:5000/api/emergency-cases/${id}`, {
         method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
       if (data.success) {
@@ -351,24 +453,30 @@ export default function ManageEmergencyPage() {
 
   const handleEditCaseSubmit = async (formData) => {
     setEditModalLoading(true);
+    // Convert datetime-local value to 'YYYY-MM-DD HH:mm:ss' string
+    const dateTimeStr = formData.date.replace('T', ' ') + ':00';
     const sendData = {
       name_patient: formData.name,
       ic_number: formData.ic,
-      date_time: formData.date.replace('T', ' ') + ':00',
+      date_time: dateTimeStr,
       status: formData.status,
       assigned_to: formData.assigned,
       role: formData.role,
     };
     try {
-      const res = await fetch(`http://194.164.148.171:5000/api/emergency_cases/${editCaseData.id}`, {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`http://localhost:5000/api/emergency-cases/${editCaseData.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(sendData),
       });
       const data = await res.json();
       if (data.success) {
-        setCases(prev => prev.map(c => c.id === editCaseData.id ? { ...c, ...sendData, id: editCaseData.id } : c));
         setIsEditModalOpen(false);
+        fetchCases();
       } else {
         alert(data.message || 'Failed to update emergency case.');
       }
@@ -378,51 +486,31 @@ export default function ManageEmergencyPage() {
     setEditModalLoading(false);
   };
 
-  // Update filteredCases to use fetched data
-  const filteredCases = cases.filter(c =>
-    (!search || c.name_patient.toLowerCase().includes(search.toLowerCase()) || c.ic_number.includes(search) || c.role.toLowerCase().includes(search.toLowerCase())) &&
-    (!statusFilter || c.status === statusFilter) &&
-    (!dateFilter || (c.date_time && c.date_time.slice(0, 10) === dateFilter))
-  );
+  // When filtering by date, compare using string slice
+  const filteredCases = cases.filter(c => {
+    let match = true;
+    if (search && search.trim()) {
+      match = c.name_patient?.toLowerCase().includes(search.toLowerCase()) || c.ic_number?.toLowerCase().includes(search.toLowerCase());
+    }
+    if (match && statusFilter) {
+      match = c.status === statusFilter;
+    }
+    if (match && dateFilter) {
+      // Compare only the date part
+      const dbDate = c.date_time ? c.date_time.slice(0, 10) : '';
+      if (dbDate !== dateFilter) {
+        // Debug log
+        console.log('Filter mismatch:', { dbDate, dateFilter, raw: c.date_time });
+        match = false;
+      }
+    }
+    return match;
+  });
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex">
-      {/* Sidebar */}
-      <aside className="w-56 bg-white rounded-xl shadow-lg m-4 flex flex-col p-4 justify-between">
-        <div>
-          <div className="flex items-center mb-6">
-            <Image src="/brain-logo.png" width={32} height={32} alt="Logo" className="mr-2" />
-            <span className="font-semibold text-lg text-gray-700">MENTAL HEALTH CARE</span>
-          </div>
-          <nav>
-            <ul className="space-y-1">
-              {sidebarMenu.map((item) => (
-                <li key={item.label}>
-                  <button
-                    className={`flex items-center w-full px-4 py-2 rounded-lg text-gray-700 hover:bg-blue-50 transition font-medium ${pathname === item.path ? 'bg-blue-50' : ''}`}
-                    onClick={() => router.push(item.path)}
-                  >
-                    {item.icon}
-                    <span className="ml-3">{item.label}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </div>
-        <button
-          className="flex items-center gap-2 mt-8 px-4 py-2 rounded-lg text-red-600 hover:bg-red-50 font-medium transition"
-          onClick={() => {
-            localStorage.removeItem('adminToken');
-            router.push('/admin/login');
-          }}
-        >
-          <LogOut size={20} />
-          Log Out
-        </button>
-      </aside>
-      {/* Main Content */}
-      <main className="flex-1 p-8 space-y-8">
+    <div className="min-h-screen w-full bg-white flex">
+      <AdminSidebar />
+      <main className="flex-1 w-full p-4 sm:p-8 space-y-8">
         <h1 className="font-bold text-3xl mb-6 text-gray-900">Manage Emergency Cases</h1>
         {/* Status Summary */}
         <div className="flex gap-6 mb-6">
@@ -487,21 +575,24 @@ export default function ManageEmergencyPage() {
                 <tr><td colSpan={7} className="text-center text-gray-400 py-4">No cases found</td></tr>
               ) : filteredCases.map(row => (
                 <tr key={row.id} className="border-b last:border-b-0 hover:bg-gray-50 transition">
-                  <td className="py-2 px-3 text-gray-800">{row.name_patient}</td>
-                  <td className="py-2 px-3 text-gray-800">{row.ic_number}</td>
-                  <td className="py-2 px-3 text-gray-800">{formatDisplayDateTime(row.date_time)}</td>
+                  <td className="py-2 px-3 text-gray-800">{row.name_patient || '-'}</td>
+                  <td className="py-2 px-3 text-gray-800">{row.ic_number || '-'}</td>
+                  <td className="py-2 px-3 text-gray-800">{row.date_time ? formatDisplayDateTime(row.date_time) : '-'}</td>
                   <td className="py-2 px-3 text-gray-800">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      row.status === 'In Progress' ? 'bg-yellow-100 text-yellow-700' :
-                      row.status === 'Resolved' ? 'bg-blue-100 text-blue-700' :
-                      row.status === 'Solved' ? 'bg-green-100 text-green-700' :
-                      ''
-                    }`}>
-                      {row.status}
-                    </span>
+                    {row.status ? (
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        row.status === 'In Progress' ? 'bg-yellow-100 text-yellow-700' :
+                        row.status === 'Resolved' ? 'bg-blue-100 text-blue-700' :
+                        row.status === 'Solved' ? 'bg-green-100 text-green-700' : ''
+                      }`}>
+                        {row.status}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 italic">Pending</span>
+                    )}
                   </td>
-                  <td className="py-2 px-3 text-gray-800">{row.assigned_to}</td>
-                  <td className="py-2 px-3 text-gray-800">{row.role}</td>
+                  <td className="py-2 px-3 text-gray-800">{row.assigned_to || <span className="text-gray-400 italic">Unassigned</span>}</td>
+                  <td className="py-2 px-3 text-gray-800">{row.role || <span className="text-gray-400 italic">Unknown</span>}</td>
                   <td className="py-2 px-3 flex gap-2">
                     <button className="hover:text-blue-600" title="View"><Eye size={18} /></button>
                     <button className="hover:text-green-600" title="Edit" onClick={() => handleEditCase(row)}><Edit size={18} /></button>

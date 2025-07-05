@@ -20,25 +20,43 @@ export default function PublicLoginPage() {
     }
     setLoading(true);
     try {
-      const res = await fetch("http://194.164.148.171:5000/api/user-public/login", {
+      console.log("Attempting login with email:", email);
+      
+      // Use the correct API endpoint that matches the backend route
+      const res = await fetch("http://localhost:5000/api/public-users/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
+      
+      console.log("Login response status:", res.status);
+      const contentType = res.headers.get("content-type");
+      console.log("Response content type:", contentType);
+      
+      if (!res.ok) {
+        if (contentType && contentType.includes("application/json")) {
+          const errorData = await res.json();
+          throw new Error(errorData.message || `Error ${res.status}: ${res.statusText}`);
+        } else {
+          throw new Error("Server error: Not a valid JSON response. Please check if the backend is running and the login route exists.");
+        }
+      }
+      
       const data = await res.json();
-      console.log("Login API raw response:", data);
+      console.log("Login API response:", data);
+      
       if (data.success) {
         localStorage.setItem("publicUser", JSON.stringify(data.user));
         localStorage.setItem("publicToken", data.token);
-        localStorage.setItem("full_name", data.user.full_name.trim());
+        localStorage.setItem("full_name", data.user.full_name?.trim() || "");
+        localStorage.setItem("email", data.user.email?.trim() || "");
         router.push("/user-public/dashboard");
       } else {
         setError(data.message || "Invalid email or password.");
-        alert(data.message || "Invalid email or password.");
       }
     } catch (err) {
+      console.error("Login error:", err);
       setError("Login failed: " + err.message);
-      alert("Login failed: " + err.message);
     } finally {
       setLoading(false);
     }

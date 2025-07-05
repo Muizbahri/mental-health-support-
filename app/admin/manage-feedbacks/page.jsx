@@ -3,6 +3,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Home, Users, BookOpen, MessageCircle, AlertTriangle, LogOut, Edit, Trash2, Plus, Calendar, User } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
+import AdminSidebar from '../Sidebar';
 
 const sidebarMenu = [
   { icon: <Home size={20} />, label: "Dashboard", path: "/admin/dashboard" },
@@ -80,8 +81,13 @@ export default function ManageFeedbacksPage() {
       full_name: form.fullName,
       type_of_feedback: form.typeOfFeedback,
       feedback: form.feedback,
-      feedback_date: form.date,
     };
+    
+    // Only include date when editing existing feedback
+    if (isEdit && modal.feedback && modal.feedback.id) {
+      payload.feedback_date = form.date;
+    }
+    
     if (isEdit && modal.feedback && modal.feedback.id) {
       await fetch(`/api/feedbacks/${modal.feedback.id}`, {
         method: 'PUT',
@@ -89,6 +95,7 @@ export default function ManageFeedbacksPage() {
         body: JSON.stringify(payload),
       });
     } else {
+      // For new feedback, backend will automatically set current date/time
       await fetch('/api/feedbacks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -104,43 +111,9 @@ export default function ManageFeedbacksPage() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex">
-      {/* Sidebar */}
-      <aside className="w-56 bg-white rounded-xl shadow-lg m-4 flex flex-col p-4 justify-between">
-        <div>
-          <div className="flex items-center mb-6">
-            <Image src="/brain-logo.png" width={32} height={32} alt="Logo" className="mr-2" />
-            <span className="font-semibold text-lg text-gray-700">MENTAL HEALTH CARE</span>
-          </div>
-          <nav>
-            <ul className="space-y-1">
-              {sidebarMenu.map((item) => (
-                <li key={item.label}>
-                  <button
-                    className={`flex items-center w-full px-4 py-2 rounded-lg text-gray-700 hover:bg-blue-50 transition font-medium ${pathname === item.path ? 'bg-blue-50' : ''}`}
-                    onClick={() => router.push(item.path)}
-                  >
-                    {item.icon}
-                    <span className="ml-3">{item.label}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </div>
-        <button
-          className="flex items-center gap-2 mt-8 px-4 py-2 rounded-lg text-red-600 hover:bg-red-50 font-medium transition"
-          onClick={() => {
-            localStorage.removeItem('adminToken');
-            router.push('/admin/login');
-          }}
-        >
-          <LogOut size={20} />
-          Log Out
-        </button>
-      </aside>
-      {/* Main Content */}
-      <main className="flex-1 p-8 space-y-8">
+    <div className="min-h-screen w-full bg-white flex">
+      <AdminSidebar />
+      <main className="flex-1 w-full p-4 sm:p-8 space-y-8">
         <h1 className="font-bold text-3xl mb-6 text-gray-900">Manage Feedback</h1>
         {FEEDBACK_TYPES.map(({ key, label }) => (
           <div key={key}>
@@ -190,7 +163,8 @@ export default function ManageFeedbacksPage() {
 }
 
 function FeedbackModal({ type, feedback, onClose, onSubmit }) {
-  const [form, setForm] = useState(feedback ? { ...feedback } : { fullName: '', typeOfFeedback: '', feedback: '', date: '' });
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState(feedback ? { ...feedback } : { fullName: '', typeOfFeedback: '', feedback: '', date: todayStr });
   const [loading, setLoading] = useState(false);
 
   function handleChange(e) {
@@ -223,7 +197,20 @@ function FeedbackModal({ type, feedback, onClose, onSubmit }) {
         </div>
         <div className="flex flex-col gap-2">
           <label className="font-medium text-gray-800">Date</label>
-          <input name="date" type="date" value={form.date} onChange={handleChange} className="border rounded-lg px-3 py-2 text-gray-900 placeholder-gray-400" required />
+          {feedback ? (
+            <input
+              name="date"
+              type="date"
+              value={form.date || todayStr}
+              onChange={handleChange}
+              className="border rounded-lg px-3 py-2 text-gray-900 placeholder-gray-400"
+              required
+            />
+          ) : (
+            <div className="border rounded-lg px-3 py-2 text-gray-600 bg-gray-50 italic">
+              Will be set to current date/time automatically
+            </div>
+          )}
         </div>
         <div className="flex justify-end gap-3 mt-4">
           <button type="button" className="px-4 py-2 rounded-lg border border-gray-400 bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold" onClick={onClose} disabled={loading}>Cancel</button>

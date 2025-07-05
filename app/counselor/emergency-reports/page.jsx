@@ -21,12 +21,26 @@ export default function EmergencyReportsPage() {
   const [editForm, setEditForm] = useState({ status: "In Progress", notes: "" });
   const [deletingId, setDeletingId] = useState(null);
   const userRef = useRef(null);
+  const [newForm, setNewForm] = useState({
+    name_patient: "",
+    ic_number: "",
+    date_time: "",
+    status: "In Progress",
+    assigned_to: "",
+    role: "Counselor",
+  });
+  const [professionals, setProfessionals] = useState({ counselors: [], psychiatrists: [] });
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem("counselorUser"));
+    const user = JSON.parse(localStorage.getItem('counselorUser'));
     userRef.current = user;
     if (!user) return;
-    fetch(`http://194.164.148.171:5000/api/emergency_cases?assigned_to=${encodeURIComponent(user.full_name)}`)
+    setLoading(true);
+    const token = localStorage.getItem('counselorToken');
+    fetch(`http://localhost:5000/api/emergency-cases?counselor_id=${user.id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
       .then(res => res.json())
       .then(data => {
         setCases(data.success ? data.data : []);
@@ -48,6 +62,33 @@ export default function EmergencyReportsPage() {
     }
     setFiltered(filteredCases);
   }, [cases, search, statusFilter]);
+
+  useEffect(() => {
+    // Fetch professionals for dropdown
+    async function fetchProfessionals() {
+      const [counselorRes, psychiatristRes] = await Promise.all([
+        fetch("http://localhost:5000/api/counselors").then(res => res.json()),
+        fetch("http://localhost:5000/api/psychiatrists").then(res => res.json()),
+      ]);
+      
+      // Get current logged-in counselor
+      const currentUser = JSON.parse(localStorage.getItem('counselorUser'));
+      const currentCounselorId = currentUser?.id;
+      
+      // Filter out current counselor from the list
+      const filteredCounselors = (counselorRes.data || []).filter(
+        counselor => counselor.id !== currentCounselorId
+      );
+      
+      console.log(`Filtered ${filteredCounselors.length} counselors (excluded current user ID: ${currentCounselorId})`);
+      
+      setProfessionals({
+        counselors: filteredCounselors,
+        psychiatrists: psychiatristRes.data || [],
+      });
+    }
+    fetchProfessionals();
+  }, []);
 
   function openViewModal(c) {
     setModalMode("view");
@@ -71,13 +112,38 @@ export default function EmergencyReportsPage() {
   async function handleEditSubmit(e) {
     e.preventDefault();
     if (!current) return;
-    const res = await fetch(`http://194.164.148.171:5000/api/emergency_cases/${current.id}`, {
+    let counselor_id = null;
+    let psychiatrist_id = null;
+    
+    // Use current case's role and assigned_to values instead of form values
+    if (current.role === "Counselor") {
+      const selected = professionals.counselors.find(c => c.full_name === current.assigned_to || c.email === current.assigned_to);
+      counselor_id = selected ? selected.id : null;
+    } else if (current.role === "Psychiatrist") {
+      const selected = professionals.psychiatrists.find(p => p.full_name === current.assigned_to || p.email === current.assigned_to);
+      psychiatrist_id = selected ? selected.id : null;
+    }
+    const payload = {
+      name_patient: editForm.name_patient ?? current.name_patient,
+      ic_number: editForm.ic_number ?? current.ic_number,
+      date_time: editForm.date_time ?? current.date_time,
+      status: editForm.status ?? current.status,
+      assigned_to: current.assigned_to, // Keep existing assignment
+      role: current.role, // Keep existing role
+      counselor_id,
+      psychiatrist_id,
+    };
+    const token = localStorage.getItem('counselorToken');
+    const res = await fetch(`http://localhost:5000/api/emergency-cases/${current.id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editForm),
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify(payload),
     });
     if (res.ok) {
-      const updated = cases.map(c => c.id === current.id ? { ...c, ...editForm } : c);
+      const updated = cases.map(c => c.id === current.id ? { ...c, ...payload } : c);
       setCases(updated);
       closeModal();
     } else {
@@ -87,7 +153,11 @@ export default function EmergencyReportsPage() {
   async function handleDelete(id) {
     if (!window.confirm("Are you sure you want to delete this emergency case?")) return;
     setDeletingId(id);
-    const res = await fetch(`http://194.164.148.171:5000/api/emergency_cases/${id}`, { method: "DELETE" });
+    const token = localStorage.getItem('counselorToken');
+    const res = await fetch(`http://localhost:5000/api/emergency-cases/${id}`, { 
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${token}` }
+    });
     if (res.ok) {
       setCases(cs => cs.filter(c => c.id !== id));
     } else {
@@ -96,15 +166,77 @@ export default function EmergencyReportsPage() {
     setDeletingId(null);
   }
 
+  function openNewModal() {
+    setModalMode("new");
+    setNewForm({
+      name_patient: "",
+      ic_number: "",
+      date_time: "",
+      status: "In Progress",
+      assigned_to: "",
+      role: "Counselor",
+    });
+    setShowModal(true);
+  }
+
+  async function handleNewSubmit(e) {
+    e.preventDefault();
+    setAdding(true);
+    const user = userRef.current;
+    let counselor_id = null;
+    let psychiatrist_id = null;
+    if (newForm.role === "Counselor") {
+      const selected = professionals.counselors.find(c => c.full_name === newForm.assigned_to || c.email === newForm.assigned_to);
+      counselor_id = selected ? selected.id : null;
+    } else if (newForm.role === "Psychiatrist") {
+      const selected = professionals.psychiatrists.find(p => p.full_name === newForm.assigned_to || p.email === newForm.assigned_to);
+      psychiatrist_id = selected ? selected.id : null;
+    }
+    const payload = {
+      name_patient: newForm.name_patient,
+      ic_number: newForm.ic_number,
+      date_time: newForm.date_time,
+      status: newForm.status,
+      assigned_to: newForm.assigned_to,
+      role: newForm.role,
+      counselor_id,
+      psychiatrist_id,
+    };
+    const token = localStorage.getItem('counselorToken');
+    const res = await fetch("http://localhost:5000/api/emergency-cases/admin", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify(payload),
+    });
+    setAdding(false);
+    if (res.ok) {
+      setShowModal(false);
+      setNewForm({ name_patient: "", ic_number: "", date_time: "", status: "In Progress", assigned_to: "", role: "Counselor" });
+      // Refresh cases
+      const data = await res.json();
+      const token = localStorage.getItem('counselorToken');
+      fetch(`http://localhost:5000/api/emergency-cases?counselor_id=${user.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => setCases(data.success ? data.data : []));
+    } else {
+      alert("Failed to add emergency case.");
+    }
+  }
+
   // Status summary counts
   const inProgress = cases.filter(c => c.status === "In Progress").length;
   const resolved = cases.filter(c => c.status === "Resolved").length;
   const solved = cases.filter(c => c.status === "Solved").length;
 
   return (
-    <div className="min-h-screen flex bg-[#f7fafc]">
+    <div className="min-h-screen w-full flex bg-white">
       <CounselorSidebar activePage="EMERGENCY REPORTS" />
-      <main className="flex-1 p-8">
+      <main className="flex-1 w-full p-4 sm:p-8">
         <h2 className="text-2xl font-bold text-black mb-6">My Emergency Cases</h2>
         <div className="flex gap-4 mb-8">
           <StatusCard label="In Progress" count={inProgress} color="bg-yellow-100" />
@@ -129,7 +261,7 @@ export default function EmergencyReportsPage() {
             {STATUS_OPTIONS.map(opt => <option key={opt} style={{color:'#000'}}>{opt}</option>)}
           </select>
           <div className="flex-1 flex justify-end">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg shadow transition">New Emergency</button>
+            <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg shadow transition" onClick={openNewModal}>New Emergency</button>
           </div>
         </div>
         <div className="bg-white rounded-2xl shadow p-6">
@@ -188,20 +320,73 @@ export default function EmergencyReportsPage() {
               <form className="w-full max-w-md bg-white rounded-xl shadow-lg p-8 text-black" onSubmit={handleEditSubmit}>
                 <h3 className="text-xl font-bold mb-4 text-black">Edit Emergency Case</h3>
                 <div className="mb-3">
-                  <label className="block text-sm font-medium mb-1 text-black">Status</label>
-                  <select name="status" value={editForm.status} onChange={handleEditChange} className="w-full px-3 py-2 border rounded-lg text-black" style={{color:'#000'}}>
-                    <option value="In Progress" style={{color:'#000'}}>In Progress</option>
-                    <option value="Resolved" style={{color:'#000'}}>Resolved</option>
-                    <option value="Solved" style={{color:'#000'}}>Solved</option>
-                  </select>
+                  <label className="block text-sm font-medium mb-1 text-black">Name (Patient)</label>
+                  <input type="text" required name="name_patient" value={editForm.name_patient ?? current.name_patient} onChange={handleEditChange} className="w-full px-3 py-2 border rounded-lg text-black" />
                 </div>
-                <div className="mb-6">
-                  <label className="block text-sm font-medium mb-1 text-black">Notes</label>
-                  <textarea name="notes" value={editForm.notes} onChange={handleEditChange} className="w-full px-3 py-2 border rounded-lg text-black" rows={3} style={{color:'#000'}} />
+                <div className="mb-3">
+                  <label className="block text-sm font-medium mb-1 text-black">IC Number</label>
+                  <input type="text" required name="ic_number" value={editForm.ic_number ?? current.ic_number} onChange={handleEditChange} className="w-full px-3 py-2 border rounded-lg text-black" />
+                </div>
+                <div className="mb-3">
+                  <label className="block text-sm font-medium mb-1 text-black">Date/Time</label>
+                  <input type="datetime-local" required name="date_time" value={editForm.date_time ?? current.date_time} onChange={handleEditChange} className="w-full px-3 py-2 border rounded-lg text-black" min={(() => { const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); return now.toISOString().slice(0,16); })()} />
+                </div>
+                <div className="mb-3">
+                  <label className="block text-sm font-medium mb-1 text-black">Status</label>
+                  <select name="status" required value={editForm.status ?? current.status} onChange={handleEditChange} className="w-full px-3 py-2 border rounded-lg text-black">
+                    <option value="In Progress">In Progress</option>
+                    <option value="Resolved">Resolved</option>
+                    <option value="Solved">Solved</option>
+                  </select>
                 </div>
                 <div className="flex justify-end gap-2">
                   <button type="button" onClick={closeModal} className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-black">Cancel</button>
                   <button type="submit" className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold text-black">Save</button>
+                </div>
+              </form>
+            )}
+            {modalMode === "new" && (
+              <form className="w-full max-w-md bg-white rounded-xl shadow-lg p-8 text-black" onSubmit={handleNewSubmit}>
+                <h3 className="text-xl font-bold mb-4 text-black">New Emergency Case</h3>
+                <div className="mb-3">
+                  <label className="block text-sm font-medium mb-1 text-black">Name (Patient)</label>
+                  <input type="text" required value={newForm.name_patient} onChange={e => setNewForm(f => ({ ...f, name_patient: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-black" />
+                </div>
+                <div className="mb-3">
+                  <label className="block text-sm font-medium mb-1 text-black">IC Number</label>
+                  <input type="text" required value={newForm.ic_number} onChange={e => setNewForm(f => ({ ...f, ic_number: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-black" />
+                </div>
+                <div className="mb-3">
+                  <label className="block text-sm font-medium mb-1 text-black">Date/Time</label>
+                  <input type="datetime-local" required value={newForm.date_time} onChange={e => setNewForm(f => ({ ...f, date_time: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-black" min={(() => { const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); return now.toISOString().slice(0,16); })()} />
+                </div>
+                <div className="mb-3">
+                  <label className="block text-sm font-medium mb-1 text-black">Status</label>
+                  <select required value={newForm.status} onChange={e => setNewForm(f => ({ ...f, status: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-black">
+                    <option value="In Progress">In Progress</option>
+                    <option value="Resolved">Resolved</option>
+                    <option value="Solved">Solved</option>
+                  </select>
+                </div>
+                <div className="mb-3">
+                  <label className="block text-sm font-medium mb-1 text-black">Assigned To</label>
+                  <select required value={newForm.assigned_to} onChange={e => setNewForm(f => ({ ...f, assigned_to: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-black">
+                    <option value="">Select</option>
+                    {(newForm.role === "Counselor" ? professionals.counselors : professionals.psychiatrists).map(p => (
+                      <option key={p.id} value={p.full_name}>{p.full_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium mb-1 text-black">Role</label>
+                  <select required value={newForm.role} onChange={e => setNewForm(f => ({ ...f, role: e.target.value, assigned_to: "" }))} className="w-full px-3 py-2 border rounded-lg text-black">
+                    <option value="Counselor">Counselor</option>
+                    <option value="Psychiatrist">Psychiatrist</option>
+                  </select>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={closeModal} className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-black">Cancel</button>
+                  <button type="submit" className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold text-black" disabled={adding}>{adding ? "Adding..." : "Add"}</button>
                 </div>
               </form>
             )}
@@ -223,8 +408,8 @@ function StatusCard({ label, count, color }) {
 
 function Modal({ children, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
-      <div className="absolute inset-0" onClick={onClose}></div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
       <div className="relative z-10">{children}</div>
     </div>
   );

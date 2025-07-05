@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import Sidebar from "../../Sidebar";
 import dynamic from 'next/dynamic';
 import { FaRoute } from 'react-icons/fa';
+import { Menu, X } from "lucide-react";
+import ReactDOM from "react-dom";
 
 const MapComponent = dynamic(() => import('./components/MapComponent'), { ssr: false });
 
@@ -17,6 +19,10 @@ export default function FindLocationPage() {
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
   const geoapifyKey = process.env.NEXT_PUBLIC_GEOAPIFY_KEY;
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Portal root for sidebar/overlay
+  const portalRoot = typeof window !== "undefined" ? document.body : null;
 
   useEffect(() => {
     // Fetch user's location when the component mounts
@@ -37,7 +43,7 @@ export default function FindLocationPage() {
   }, []);
 
   useEffect(() => {
-    fetch("http://194.164.148.171:5000/api/counselors")
+    fetch("http://localhost:5000/api/counselors")
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data.data)) {
@@ -51,7 +57,7 @@ export default function FindLocationPage() {
         console.error("Failed to fetch professionals", err);
         setProfessionals([]);
       });
-    fetch("http://194.164.148.171:5000/api/psychiatrists")
+    fetch("http://localhost:5000/api/psychiatrists")
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data.data)) {
@@ -124,9 +130,45 @@ export default function FindLocationPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      <Sidebar activePage="FIND-LOCATIONS" />
-      <main className="flex-1 p-10">
+    <div className="min-h-screen flex bg-gray-50 relative">
+      {/* Hamburger menu for mobile */}
+      <button
+        className="md:hidden fixed top-4 left-4 z-[10000] bg-white rounded-full p-2 shadow-lg border border-gray-200"
+        onClick={() => setSidebarOpen(true)}
+        aria-label="Open menu"
+      >
+        <Menu size={28} color="#000" />
+      </button>
+      {/* Sidebar for desktop/tablet */}
+      <div className="hidden md:block">
+        <Sidebar activePage="FIND-LOCATIONS" />
+      </div>
+      {/* Sidebar as drawer on mobile, static on desktop */}
+      {portalRoot && sidebarOpen && ReactDOM.createPortal(
+        <>
+          {/* Mobile Drawer Overlay - only when sidebarOpen is true */}
+          <div
+            className="fixed inset-0 z-[9999] bg-black/30 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+          {/* Sidebar Drawer */}
+          <aside
+            className="fixed top-0 left-0 z-[10000] h-full w-64 bg-white shadow-lg transform transition-transform duration-200 md:static md:translate-x-0 md:block translate-x-0 md:min-h-screen"
+          >
+            {/* Close button for mobile */}
+            <button
+              className="md:hidden absolute top-4 right-4 z-[10001] bg-gray-100 rounded-full p-1 border border-gray-300"
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Close menu"
+            >
+              <X size={24} color="#000" />
+            </button>
+            <Sidebar activePage="FIND-LOCATIONS" />
+          </aside>
+        </>, portalRoot
+      )}
+      {/* Main Content */}
+      <main className="flex-1 p-4 sm:p-6 md:p-10 transition-all duration-200">
         <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">Find Mental Health Services</h1>
         <p className="text-center text-gray-600 mb-8 text-lg">Locate nearby counselors and psychiatrists</p>
         <div className="max-w-5xl mx-auto flex flex-col gap-8">
@@ -139,6 +181,7 @@ export default function FindLocationPage() {
                 selectedProfessional={selectedProfessional}
                 routeCoords={routeCoords}
                 userLocation={userLocation}
+                url={`https://maps.geoapify.com/v1/tile/osm-bright/{z}/{x}/{y}.png?apiKey=${process.env.NEXT_PUBLIC_GEOAPIFY_KEY}`}
               />
             </div>
             {routeInfo && (

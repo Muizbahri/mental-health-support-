@@ -4,14 +4,14 @@ const fetch = require('node-fetch');
 
 const token = process.env.TELEGRAM_BOT_TOKEN || 'fallback-token';
 
-// Only start polling if this file is run directly (not imported)
+// Initialize bot with polling enabled
 let bot;
 if (require.main === module) {
   bot = new TelegramBot(token, { polling: true });
   console.log('Telegram bot started (standalone)');
 } else {
-  bot = new TelegramBot(token, { polling: false });
-  console.log('Telegram bot loaded as module (no polling)');
+  bot = new TelegramBot(token, { polling: true });
+  console.log('Telegram bot loaded as module (polling enabled)');
 }
 
 // In-memory store for user assessment states
@@ -102,12 +102,6 @@ const mainMenuKeyboard = {
       ],
       [
         {
-          text: "👥 Find Community",
-          callback_data: "find_community"
-        }
-      ],
-      [
-        {
           text: "🎯 Find Activity",
           callback_data: "find_activity"
         }
@@ -135,9 +129,6 @@ Take a quick anxiety screening (GAD-7) to check your anxiety level.
 
 🏥 *Find Hospital & Clinics*
 Get a list and map of nearby hospitals and clinics for mental health support.
-
-👥 *Find Community*
-Connect with local mental health communities and support groups.
 
 🎯 *Find Activity*
 Discover mental health-related events, workshops, or activities around you.
@@ -307,11 +298,23 @@ bot.on('callback_query', async (callbackQuery) => {
       case 'share_location':
         await bot.sendMessage(chatId, "Please use the 'Attach' button (📎) in your Telegram app and select 'Location' to share your current location with me.");
         break;
-      case 'find_community':
-        await handleFindCommunity(chatId);
+      case 'enter_city':
+        await handleEnterCity(chatId);
         break;
       case 'find_activity':
         await handleFindActivity(chatId);
+        break;
+      case 'mindfulness_activities':
+        await handleCategorySelection(chatId, 'Mindfulness & Meditation', '🧘');
+        break;
+      case 'art_therapy':
+        await handleCategorySelection(chatId, 'Art & Creative Therapy', '🎨');
+        break;
+      case 'exercise_groups':
+        await handleCategorySelection(chatId, 'Exercise & Movement', '🏃');
+        break;
+      case 'educational_seminars':
+        await handleCategorySelection(chatId, 'Educational Seminars', '📚');
         break;
       case 'emergency_contact':
         await handleEmergencyContact(chatId);
@@ -322,8 +325,13 @@ bot.on('callback_query', async (callbackQuery) => {
       case 'local_emergency':
         await handleLocalEmergency(chatId);
         break;
-      case 'online_crisis_support':
-        await handleOnlineCrisisSupport(chatId);
+      case 'emergency_share_location':
+        await bot.sendMessage(chatId, "🏥 Please use the 'Attach' button (📎) in your Telegram app and select 'Location' to share your current location. I'll find the nearest emergency hospitals for you.");
+        // Set state to indicate we're waiting for emergency location
+        userStates[chatId] = { type: 'waiting_for_emergency_location' };
+        break;
+      case 'emergency_enter_city':
+        await handleEmergencyEnterCity(chatId);
         break;
       case 'back_to_menu':
         await bot.editMessageText('Returning to the main menu...', { chat_id: chatId, message_id: messageId });
@@ -344,33 +352,159 @@ bot.on('location', async (msg) => {
   const chatId = msg.chat.id;
   const { latitude, longitude } = msg.location;
 
-  const searchingMsg = await bot.sendMessage(chatId, 'Thanks! Searching for the nearest mental health professionals for you...');
+  // Check if this is for emergency hospital search
+  const userState = userStates[chatId];
+  if (userState && userState.type === 'waiting_for_emergency_location') {
+    // Clear user state
+    delete userStates[chatId];
+
+    const searchingMsg = await bot.sendMessage(chatId, '🏥 Thanks! Searching for the nearest emergency hospitals for you...');
+    trackMessage(chatId, searchingMsg);
+
+    try {
+      const nearestHospitals = await findNearestEmergencyHospitals(latitude, longitude);
+
+      if (nearestHospitals.length > 0) {
+        let replyMessage = `🏥 *Nearest Emergency Hospitals:*\n\n⚠️ *For life-threatening emergencies, call 999 first!*\n`;
+        
+        nearestHospitals.forEach((hospital, index) => {
+          replyMessage += `\n${index + 1}. *${hospital.name}*`;
+          replyMessage += `\n   📍 ${hospital.address}`;
+          replyMessage += `\n   🏙️ ${hospital.city}, ${hospital.state}`;
+          replyMessage += `\n   📞 ${hospital.phone || 'Phone not available'}`;
+          replyMessage += `\n   📏 ${hospital.distance.toFixed(2)} km away`;
+          replyMessage += `\n`;
+        });
+        
+        const replyMsg = await bot.sendMessage(chatId, replyMessage, { parse_mode: 'Markdown' });
+        trackMessage(chatId, replyMsg);
+        
+        // Send map pins for each hospital
+        for (const hospital of nearestHospitals) {
+          const locMsg = await bot.sendLocation(chatId, hospital.latitude, hospital.longitude);
+          trackMessage(chatId, locMsg);
+          const nameMsg = await bot.sendMessage(chatId, `🏥 ${hospital.name}\n📞 ${hospital.phone || 'Phone not available'}`);
+          trackMessage(chatId, nameMsg);
+        }
+
+      } else {
+        const noResultsMsg = await bot.sendMessage(chatId, "❌ No emergency hospitals found near your location. Please call 999 for immediate emergency assistance.");
+        trackMessage(chatId, noResultsMsg);
+      }
+    } catch (error) {
+      console.error('Error finding emergency hospitals:', error);
+      const errorMsg = await bot.sendMessage(chatId, 'Sorry, I ran into an error. For immediate emergency, please call 999.');
+      trackMessage(chatId, errorMsg);
+    }
+  } else {
+    // Regular hospital/clinic search
+    const searchingMsg = await bot.sendMessage(chatId, 'Thanks! Searching for the nearest mental health professionals for you...');
+    trackMessage(chatId, searchingMsg);
+
+    try {
+      // Call the function directly instead of making HTTP request
+      const nearestProfessionals = await findNearestProfessionals(latitude, longitude);
+
+      if (nearestProfessionals.length > 0) {
+        let replyMessage = `🏥 *Here are the nearest hospitals/clinics:*\n`;
+        
+        nearestProfessionals.forEach((p, index) => {
+          replyMessage += `\n${index + 1}. *${p.full_name}* (${p.type})`;
+          replyMessage += `\n   📍 Location: ${p.location}`;
+          replyMessage += `\n   📏 Distance: ${p.distance.toFixed(2)} km away`;
+          replyMessage += `\n`;
+        });
+        
+        const replyMsg = await bot.sendMessage(chatId, replyMessage, { parse_mode: 'Markdown' });
+        trackMessage(chatId, replyMsg);
+        
+        // Also send locations on a map
+        for (const p of nearestProfessionals) {
+          const locMsg = await bot.sendLocation(chatId, p.latitude, p.longitude);
+          trackMessage(chatId, locMsg);
+          const nameMsg = await bot.sendMessage(chatId, `📍 ${p.full_name} (${p.type})`);
+          trackMessage(chatId, nameMsg);
+        }
+
+      } else {
+        const noResultsMsg = await bot.sendMessage(chatId, "No registered hospitals or clinics found near your location.");
+        trackMessage(chatId, noResultsMsg);
+      }
+    } catch (error) {
+      console.error('Error finding nearest professionals:', error);
+      const errorMsg = await bot.sendMessage(chatId, 'Sorry, I ran into an error while searching. Please try again later.');
+      trackMessage(chatId, errorMsg);
+    }
+  }
+  
+  // Show the main menu again so the user can continue
+  await sendMainMenu(chatId);
+});
+
+// Handle text messages (for city input)
+bot.on('message', async (msg) => {
+  const chatId = msg.chat.id;
+  const userText = msg.text;
+
+  // Skip if it's a command or location message
+  if (!userText || userText.startsWith('/') || msg.location) {
+    return;
+  }
+
+  // Check if user is waiting for city input
+  const userState = userStates[chatId];
+  if (userState && userState.type === 'waiting_for_city') {
+    await handleCityInput(chatId, userText);
+    return;
+  }
+
+  // Check if user is waiting for emergency city input
+  if (userState && userState.type === 'waiting_for_emergency_city') {
+    await handleEmergencyCityInput(chatId, userText);
+    return;
+  }
+});
+
+// Handle city input and search for facilities
+async function handleCityInput(chatId, cityName) {
+  const searchingMsg = await bot.sendMessage(chatId, `🔍 Searching for facilities near "${cityName}"...`);
   trackMessage(chatId, searchingMsg);
 
   try {
-    const response = await fetch('http://194.164.148.171:5000/api/telegram/find-nearest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ latitude, longitude }),
-    });
-
-    const result = await response.json();
-
-    if (result.success && result.data.length > 0) {
-      let replyMessage = '📍 *Here are the 5 nearest professionals found:*';
+    // Use geocoding to get coordinates from city name
+    const geoResult = await geocodeAddress(cityName);
+    
+    if (!geoResult.success) {
+      const notFoundMsg = await bot.sendMessage(chatId, `❌ Sorry, I couldn't find "${cityName}". Please try again with a different city name or check the spelling.`);
+      trackMessage(chatId, notFoundMsg);
       
-      result.data.forEach(p => {
-        replyMessage += `\n\n- - - - - - - - - - - - - - - - - - -`;
-        replyMessage += `\n\n*${p.full_name}* (${p.type})`;
-        replyMessage += `\n*Location:* ${p.location}`;
-        replyMessage += `\n*Distance:* ${p.distance.toFixed(2)} km away`;
+      // Ask user to try again
+      const retryMsg = await bot.sendMessage(chatId, "Please type another city or area name:");
+      trackMessage(chatId, retryMsg);
+      return;
+    }
+
+    // Clear user state
+    delete userStates[chatId];
+
+    // Find nearest professionals using the coordinates
+    const nearestProfessionals = await findNearestProfessionals(geoResult.latitude, geoResult.longitude);
+
+    if (nearestProfessionals.length > 0) {
+      let replyMessage = `🏥 *Here are the nearest hospitals/clinics near ${cityName}:*\n`;
+      
+      nearestProfessionals.forEach((p, index) => {
+        replyMessage += `\n${index + 1}. *${p.full_name}* (${p.type})`;
+        replyMessage += `\n   📍 Location: ${p.location}`;
+        replyMessage += `\n   📏 Distance: ${p.distance.toFixed(2)} km away`;
+        replyMessage += `\n`;
       });
       
       const replyMsg = await bot.sendMessage(chatId, replyMessage, { parse_mode: 'Markdown' });
       trackMessage(chatId, replyMsg);
       
       // Also send locations on a map
-      for (const p of result.data) {
+      for (const p of nearestProfessionals) {
         const locMsg = await bot.sendLocation(chatId, p.latitude, p.longitude);
         trackMessage(chatId, locMsg);
         const nameMsg = await bot.sendMessage(chatId, `📍 ${p.full_name} (${p.type})`);
@@ -378,17 +512,88 @@ bot.on('location', async (msg) => {
       }
 
     } else {
-      const noResultsMsg = await bot.sendMessage(chatId, "I couldn't find any registered professionals nearby. You can try searching for general resources instead.");
+      const noResultsMsg = await bot.sendMessage(chatId, `❌ No registered hospitals or clinics found near ${cityName}.`);
       trackMessage(chatId, noResultsMsg);
     }
+
   } catch (error) {
-    console.error('Error finding nearest professionals:', error);
+    console.error('Error processing city input:', error);
     const errorMsg = await bot.sendMessage(chatId, 'Sorry, I ran into an error while searching. Please try again later.');
     trackMessage(chatId, errorMsg);
+    
+    // Clear user state
+    delete userStates[chatId];
   }
+
   // Show the main menu again so the user can continue
   await sendMainMenu(chatId);
-});
+}
+
+// Handle emergency city input and search for emergency hospitals
+async function handleEmergencyCityInput(chatId, cityName) {
+  const searchingMsg = await bot.sendMessage(chatId, `🏥 Searching for emergency hospitals near "${cityName}"...`);
+  trackMessage(chatId, searchingMsg);
+
+  try {
+    // Use geocoding to get coordinates from city name
+    const geoResult = await geocodeAddress(cityName);
+    
+    if (!geoResult.success) {
+      const notFoundMsg = await bot.sendMessage(chatId, `❌ Sorry, I couldn't find "${cityName}". Please try again with a different city/district name or check the spelling.`);
+      trackMessage(chatId, notFoundMsg);
+      
+      // Ask user to try again
+      const retryMsg = await bot.sendMessage(chatId, "Please type another city or district name:");
+      trackMessage(chatId, retryMsg);
+      return;
+    }
+
+    // Clear user state
+    delete userStates[chatId];
+
+    // Find nearest emergency hospitals using the coordinates
+    const nearestHospitals = await findNearestEmergencyHospitals(geoResult.latitude, geoResult.longitude);
+
+    if (nearestHospitals.length > 0) {
+      let replyMessage = `🏥 *Emergency Hospitals near ${cityName}:*\n\n⚠️ *For life-threatening emergencies, call 999 first!*\n`;
+      
+      nearestHospitals.forEach((hospital, index) => {
+        replyMessage += `\n${index + 1}. *${hospital.name}*`;
+        replyMessage += `\n   📍 ${hospital.address}`;
+        replyMessage += `\n   🏙️ ${hospital.city}, ${hospital.state}`;
+        replyMessage += `\n   📞 ${hospital.phone || 'Phone not available'}`;
+        replyMessage += `\n   📏 ${hospital.distance.toFixed(2)} km away`;
+        replyMessage += `\n`;
+      });
+      
+      const replyMsg = await bot.sendMessage(chatId, replyMessage, { parse_mode: 'Markdown' });
+      trackMessage(chatId, replyMsg);
+      
+      // Send map pins for each hospital
+      for (const hospital of nearestHospitals) {
+        const locMsg = await bot.sendLocation(chatId, hospital.latitude, hospital.longitude);
+        trackMessage(chatId, locMsg);
+        const nameMsg = await bot.sendMessage(chatId, `🏥 ${hospital.name}\n📞 ${hospital.phone || 'Phone not available'}`);
+        trackMessage(chatId, nameMsg);
+      }
+
+    } else {
+      const noResultsMsg = await bot.sendMessage(chatId, `❌ No emergency hospitals found near ${cityName}. Please try a larger city nearby or call 999 for immediate emergency assistance.`);
+      trackMessage(chatId, noResultsMsg);
+    }
+
+  } catch (error) {
+    console.error('Error processing emergency city input:', error);
+    const errorMsg = await bot.sendMessage(chatId, 'Sorry, I ran into an error while searching. For immediate emergency, please call 999.');
+    trackMessage(chatId, errorMsg);
+    
+    // Clear user state
+    delete userStates[chatId];
+  }
+
+  // Show the main menu again so the user can continue
+  await sendMainMenu(chatId);
+}
 
 // Handle 'clear' command
 bot.onText(/^clear$/i, async (msg) => {
@@ -511,7 +716,6 @@ I can help you find nearby mental health facilities. To provide accurate results
 *Available options:*
 • Share your current location
 • Enter your city/area manually
-• View general mental health resources
 
 *Emergency: If you're in immediate crisis, please call emergency services or go to the nearest emergency room.*
 
@@ -534,12 +738,6 @@ What would you prefer?`;
         ],
         [
           {
-            text: "📚 General Resources",
-            callback_data: "general_resources"
-          }
-        ],
-        [
-          {
             text: "🔙 Back to Menu",
             callback_data: "back_to_menu"
           }
@@ -555,69 +753,54 @@ What would you prefer?`;
   trackMessage(chatId, sentMsg);
 }
 
-// Find Community Handler
-async function handleFindCommunity(chatId) {
-  const communityMessage = `👥 *Find Community Support*
+// Handle Enter City Manually
+async function handleEnterCity(chatId) {
+  const cityMessage = `🏙️ *Enter City Manually*
 
-Connect with local mental health communities and support groups. Here are some options:
+Please type your city or area name (e.g., Kuala Lumpur, Johor Bahru, Penang):
 
-*Available Communities:*
-• Depression support groups
-• Anxiety support groups  
-• General mental health communities
-• Online support forums
-• Peer support networks
+I'll search for mental health facilities near that location.`;
 
-*Benefits of joining:*
-• Share experiences with others
-• Get emotional support
-• Learn coping strategies
-• Reduce feelings of isolation
-
-Which type of community interests you?`;
-
-  const communityKeyboard = {
-    reply_markup: {
-      inline_keyboard: [
-        [
-          {
-            text: "😔 Depression Support",
-            callback_data: "depression_community"
-          }
-        ],
-        [
-          {
-            text: "😰 Anxiety Support",
-            callback_data: "anxiety_community"
-          }
-        ],
-        [
-          {
-            text: "🧠 General Mental Health",
-            callback_data: "general_community"
-          }
-        ],
-        [
-          {
-            text: "💻 Online Forums",
-            callback_data: "online_forums"
-          }
-        ],
-        [
-          {
-            text: "🔙 Back to Menu",
-            callback_data: "back_to_menu"
-          }
-        ]
-      ]
-    }
-  };
-
-  const sentMsg = await bot.sendMessage(chatId, communityMessage, {
-    parse_mode: 'Markdown',
-    ...communityKeyboard
+  const sentMsg = await bot.sendMessage(chatId, cityMessage, {
+    parse_mode: 'Markdown'
   });
   trackMessage(chatId, sentMsg);
+
+  // Set user state to wait for city input
+  userStates[chatId] = { type: 'waiting_for_city' };
+}
+
+// Auto-categorization function
+function autoCategorize(title, description) {
+  title = title.toLowerCase();
+  description = (description || '').toLowerCase();
+
+  if (
+    title.includes('mindful') || title.includes('meditation') ||
+    description.includes('mindful') || description.includes('meditation')
+  ) {
+    return 'Mindfulness & Meditation';
+  }
+  if (
+    title.includes('art') || title.includes('creative') ||
+    description.includes('art') || description.includes('creative')
+  ) {
+    return 'Art & Creative Therapy';
+  }
+  if (
+    title.includes('exercise') || title.includes('yoga') || title.includes('movement') || title.includes('zumba') ||
+    description.includes('exercise') || description.includes('yoga') || description.includes('movement') || description.includes('zumba')
+  ) {
+    return 'Exercise & Movement';
+  }
+  if (
+    title.includes('seminar') || title.includes('awareness') || title.includes('workshop') || title.includes('talk') ||
+    description.includes('seminar') || description.includes('awareness') || description.includes('workshop') || description.includes('talk')
+  ) {
+    return 'Educational Seminars';
+  }
+  // fallback
+  return 'Educational Seminars';
 }
 
 // Find Activity Handler
@@ -632,7 +815,6 @@ Discover mental health-related events, workshops, or activities around you:
 • Art therapy classes
 • Exercise groups
 • Educational seminars
-• Social events
 
 *Benefits:*
 • Learn new coping skills
@@ -686,6 +868,136 @@ What type of activity interests you?`;
   trackMessage(chatId, sentMsg);
 }
 
+// Function to get activities by category
+async function getActivitiesByCategory(category) {
+  try {
+    const [rows] = await db.query('SELECT * FROM ngo_activities ORDER BY activity_date DESC');
+    
+    const categorizedActivities = rows.filter(activity => {
+      const activityCategory = autoCategorize(activity.activity_title, activity.activity_description);
+      return activityCategory === category;
+    });
+    
+    return categorizedActivities;
+  } catch (error) {
+    console.error('Error fetching activities:', error);
+    return [];
+  }
+}
+
+// Geocoding function to get coordinates and area from address
+async function geocodeAddress(address) {
+  try {
+    const encodedAddress = encodeURIComponent(address);
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1&addressdetails=1`);
+    const data = await response.json();
+    
+    if (data && data.length > 0) {
+      const result = data[0];
+      return {
+        latitude: parseFloat(result.lat),
+        longitude: parseFloat(result.lon),
+        area: getAreaFromNominatim(result.address),
+        success: true
+      };
+    }
+    return { success: false };
+  } catch (error) {
+    console.error('Geocoding error:', error);
+    return { success: false };
+  }
+}
+
+// Helper function to extract area information from Nominatim response
+function getAreaFromNominatim(address) {
+  if (!address) return 'Malaysia';
+  
+  // Try to get the most relevant area information
+  const area = address.city || address.town || address.state_district || address.state || address.country || 'Malaysia';
+  const state = address.state;
+  
+  if (state && area !== state) {
+    return `${area}, ${state}`;
+  }
+  return area;
+}
+
+// Function to handle category selection
+async function handleCategorySelection(chatId, category, categoryIcon) {
+  try {
+    const activities = await getActivitiesByCategory(category);
+    
+    if (activities.length === 0) {
+      const noActivitiesMsg = await bot.sendMessage(chatId, `${categoryIcon} *${category}*\n\nNo activities found in this category at the moment. Please check back later!`, { parse_mode: 'Markdown' });
+      trackMessage(chatId, noActivitiesMsg);
+      await sendMainMenu(chatId);
+      return;
+    }
+    
+    const headerMsg = await bot.sendMessage(chatId, `${categoryIcon} *${category}*\n\nHere are the available activities:`, { parse_mode: 'Markdown' });
+    trackMessage(chatId, headerMsg);
+    
+    // Process each activity individually
+    for (let i = 0; i < activities.length; i++) {
+      const activity = activities[i];
+      let message = `\n${i + 1}. *${activity.activity_title}*`;
+      message += `\n📅 Date: ${activity.activity_date}`;
+      message += `\n🕐 Time: ${activity.activity_time}`;
+      
+      // Show full address if available
+      if (activity.address) {
+        message += `\n📍 Address: ${activity.address}`;
+      } else if (activity.activity_location) {
+        message += `\n📍 Location: ${activity.activity_location}`;
+      }
+      
+      // Try geocoding to get area information and coordinates
+      let geocodeResult = null;
+      const addressToGeocode = activity.address || activity.activity_location;
+      if (addressToGeocode) {
+        geocodeResult = await geocodeAddress(addressToGeocode);
+        if (geocodeResult.success) {
+          message += `\n🌍 Area: ${geocodeResult.area}`;
+        }
+      }
+      
+      if (activity.activity_description) {
+        message += `\n📝 Description: ${activity.activity_description}`;
+      }
+      message += `\n🏢 Organizer: ${activity.ngo_name}`;
+      
+      // Send activity details
+      const activityMsg = await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+      trackMessage(chatId, activityMsg);
+      
+      // Send location pin if coordinates are available
+      if (geocodeResult && geocodeResult.success) {
+        try {
+          const locationMsg = await bot.sendLocation(chatId, geocodeResult.latitude, geocodeResult.longitude);
+          trackMessage(chatId, locationMsg);
+          
+          const locationNameMsg = await bot.sendMessage(chatId, `📍 ${activity.activity_title} - ${activity.address || activity.activity_location}`);
+          trackMessage(chatId, locationNameMsg);
+        } catch (locationError) {
+          console.error('Error sending location:', locationError);
+        }
+      }
+      
+      // Add a small delay between activities to avoid flooding
+      if (i < activities.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    await sendMainMenu(chatId);
+  } catch (error) {
+    console.error('Error handling category selection:', error);
+    const errorMsg = await bot.sendMessage(chatId, 'Sorry, I encountered an error while fetching activities. Please try again later.');
+    trackMessage(chatId, errorMsg);
+    await sendMainMenu(chatId);
+  }
+}
+
 // Emergency Contact Handler
 async function handleEmergencyContact(chatId) {
   const emergencyMessage = `🚨 *Emergency Mental Health Support (Malaysia)*
@@ -706,8 +1018,7 @@ async function handleEmergencyContact(chatId) {
 
 Would you like me to:
 • Provide more crisis resources
-• Help you find local emergency services
-• Connect you with online crisis support`;
+• Help you find local emergency services`;
 
   const emergencyKeyboard = {
     reply_markup: {
@@ -722,12 +1033,6 @@ Would you like me to:
           {
             text: "🏥 Local Emergency Services",
             callback_data: "local_emergency"
-          }
-        ],
-        [
-          {
-            text: "💻 Online Crisis Support",
-            callback_data: "online_crisis_support"
           }
         ],
         [
@@ -784,17 +1089,44 @@ Please reach out to any of these resources if you need support.`;
 }
 
 async function handleLocalEmergency(chatId) {
-    const message = "This feature is coming soon! For now, please call 999 or go to the nearest hospital's emergency department (Jabatan Kecemasan).";
-    const sentMsg = await bot.sendMessage(chatId, message);
-    trackMessage(chatId, sentMsg);
-    await sendMainMenu(chatId);
-}
+  const emergencyMessage = `🏥 *Local Emergency Services*
 
-async function handleOnlineCrisisSupport(chatId) {
-    const message = "This feature is coming soon! In the meantime, please use the WhatsApp numbers and website links provided in 'More Crisis Resources'.";
-    const sentMsg = await bot.sendMessage(chatId, message);
-    trackMessage(chatId, sentMsg);
-    await sendMainMenu(chatId);
+I'll help you find the nearest emergency hospitals in Malaysia. This is for emergency situations where you need immediate medical attention.
+
+⚠️ *For immediate life-threatening emergencies, call 999 first!*
+
+To find emergency hospitals near you, please choose an option:`;
+
+  const emergencyKeyboard = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: "📍 Share Your Location",
+            callback_data: "emergency_share_location"
+          }
+        ],
+        [
+          {
+            text: "🏙️ Enter City/District Name",
+            callback_data: "emergency_enter_city"
+          }
+        ],
+        [
+          {
+            text: "🔙 Back to Emergency Menu",
+            callback_data: "emergency_contact"
+          }
+        ]
+      ]
+    }
+  };
+
+  const sentMsg = await bot.sendMessage(chatId, emergencyMessage, {
+    parse_mode: 'Markdown',
+    ...emergencyKeyboard
+  });
+  trackMessage(chatId, sentMsg);
 }
 
 // --- GAD-7 Assessment Functions ---
@@ -936,6 +1268,78 @@ async function findNearestProfessionals(lat, lng) {
     .filter(entry => entry.distance <= MAX_RADIUS_KM)
     .sort((a, b) => a.distance - b.distance)
     .slice(0, 5);
+}
+
+// Handle Emergency Enter City
+async function handleEmergencyEnterCity(chatId) {
+  const cityMessage = `🏥 *Enter City/District for Emergency Hospitals*
+
+Please type your city or district name in Malaysia (e.g., Kuala Lumpur, Johor Bahru, Kota Kinabalu, Kuantan):
+
+I'll search for the nearest emergency hospitals in that area.
+
+⚠️ *Remember: For life-threatening emergencies, call 999 immediately!*`;
+
+  const sentMsg = await bot.sendMessage(chatId, cityMessage, {
+    parse_mode: 'Markdown'
+  });
+  trackMessage(chatId, sentMsg);
+
+  // Set user state to wait for emergency city input
+  userStates[chatId] = { type: 'waiting_for_emergency_city' };
+}
+
+// Find nearest emergency hospitals
+async function findNearestEmergencyHospitals(lat, lng) {
+  try {
+    // Search emergency_hospitals table
+    const [hospitals] = await db.query(`
+      SELECT id, name, address, city, state, phone, latitude, longitude
+      FROM emergency_hospitals
+      WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+    `);
+
+    function calcDist(lat1, lon1, lat2, lon2) {
+      if ((lat1 == lat2) && (lon1 == lon2)) {
+        return 0;
+      }
+      const R = 6371; // Radius of the earth in km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c; // Distance in km
+    }
+
+    // Calculate distances
+    hospitals.forEach(hospital => {
+      const lat1 = parseFloat(lat);
+      const lng1 = parseFloat(lng);
+      const lat2 = parseFloat(hospital.latitude);
+      const lng2 = parseFloat(hospital.longitude);
+
+      if (!isNaN(lat1) && !isNaN(lng1) && !isNaN(lat2) && !isNaN(lng2)) {
+        hospital.distance = calcDist(lat1, lng1, lat2, lng2);
+      } else {
+        hospital.distance = Infinity;
+      }
+    });
+
+    const MAX_RADIUS_KM = 50; // Larger radius for emergency hospitals
+
+    // Filter and sort by distance
+    return hospitals
+      .filter(hospital => hospital.distance <= MAX_RADIUS_KM)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 10); // Show up to 10 emergency hospitals
+
+  } catch (error) {
+    console.error('Error finding emergency hospitals:', error);
+    return [];
+  }
 }
 
 module.exports = { bot, sendTelegramMessage, findNearestProfessionals }; 

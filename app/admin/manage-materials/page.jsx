@@ -3,6 +3,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Home, Users, BookOpen, MessageCircle, AlertTriangle, LogOut, Play, Edit, Trash2, Plus, Music, FileText, Calendar } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
+import AdminSidebar from '../Sidebar';
 
 const sidebarMenu = [
   { icon: <Home size={20} />, label: "Dashboard", path: "/admin/dashboard" },
@@ -80,41 +81,7 @@ export default function ManageMaterialsPage() {
 
   return (
     <div className="min-h-screen bg-neutral-50 flex">
-      {/* Sidebar */}
-      <aside className="w-56 bg-white rounded-xl shadow-lg m-4 flex flex-col p-4 justify-between">
-        <div>
-          <div className="flex items-center mb-6">
-            <Image src="/brain-logo.png" width={32} height={32} alt="Logo" className="mr-2" />
-            <span className="font-semibold text-lg text-gray-700">MENTAL HEALTH CARE</span>
-          </div>
-          <nav>
-            <ul className="space-y-1">
-              {sidebarMenu.map((item) => (
-                <li key={item.label}>
-                  <button
-                    className={`flex items-center w-full px-4 py-2 rounded-lg text-gray-700 hover:bg-blue-50 transition font-medium ${pathname === item.path ? 'bg-blue-50' : ''}`}
-                    onClick={() => router.push(item.path)}
-                  >
-                    {item.icon}
-                    <span className="ml-3">{item.label}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </div>
-        <button
-          className="flex items-center gap-2 mt-8 px-4 py-2 rounded-lg text-red-600 hover:bg-red-50 font-medium transition"
-          onClick={() => {
-            localStorage.removeItem('adminToken');
-            router.push('/admin/login');
-          }}
-        >
-          <LogOut size={20} />
-          Log Out
-        </button>
-      </aside>
-      {/* Main Content */}
+      <AdminSidebar />
       <main className="flex-1 p-8 space-y-8">
         <h1 className="font-bold text-3xl mb-6 text-gray-900">Manage Materials</h1>
 

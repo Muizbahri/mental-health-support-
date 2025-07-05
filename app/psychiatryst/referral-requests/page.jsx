@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import PsychiatristSidebar from "../Sidebar";
 import { Mail, User, Clock, Check, X } from "lucide-react";
 
@@ -10,46 +11,121 @@ const STATUS_COLORS = {
 };
 
 export default function PsychiatristReferralRequestsPage() {
+  const router = useRouter();
   const [requests, setRequests] = useState([]);
   const [statusFilter, setStatusFilter] = useState("Pending");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("psychiatrystUser")) : null;
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
+
+  // Authentication check on page load
+  useEffect(() => {
+    const checkAuthentication = () => {
+      try {
+        const userData = JSON.parse(localStorage.getItem("psychiatrystUser"));
+        const token = userData?.token;
+        
+        if (!userData || !token) {
+          // No valid authentication found, redirect to login
+          router.push("/psychiatryst/login");
+          return false;
+        }
+        
+        setUser(userData);
+        setIsAuthenticated(true);
+        return true;
+      } catch (error) {
+        console.error("Authentication check failed:", error);
+        router.push("/psychiatryst/login");
+        return false;
+      }
+    };
+
+    if (!checkAuthentication()) {
+      return;
+    }
+
+    // Prevent back button access after logout
+    const handlePopState = () => {
+      const userData = JSON.parse(localStorage.getItem("psychiatrystUser"));
+      if (!userData || !userData.token) {
+        router.push("/psychiatryst/login");
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [router]);
 
   async function fetchRequests() {
-    if (!user || !user.full_name) return;
+    if (!user || !user.id) return;
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/referral_requests?assigned_to=${encodeURIComponent(user.full_name)}`);
+      const token = localStorage.getItem('psychiatrystToken');
+      const res = await fetch(`http://localhost:5000/api/referral-requests/psychiatrist?status=${encodeURIComponent(statusFilter)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      // Check if API response indicates authentication failure
+      if (res.status === 401 || res.status === 403) {
+        localStorage.clear();
+        router.push("/psychiatryst/login");
+        return;
+      }
+      
       const data = await res.json();
       if (data.success) {
-        setRequests(data.data || []);
+        setRequests(Array.isArray(data.data) ? data.data : []);
       } else {
         setError(data.message || "Failed to fetch referral requests.");
       }
     } catch (err) {
+      console.error("Error fetching requests:", err);
       setError("Failed to fetch referral requests.");
     }
     setLoading(false);
   }
 
-  useEffect(() => { fetchRequests(); }, []);
+  useEffect(() => { 
+    if (!isAuthenticated || !user) return;
+    fetchRequests(); 
+  }, [statusFilter, isAuthenticated, user]);
 
   async function handleAction(id, newStatus) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/referral_requests/${id}`, {
+      const token = localStorage.getItem('psychiatrystToken');
+      const res = await fetch(`http://localhost:5000/api/referral-requests/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ status: newStatus }),
       });
+      
+      // Check if API response indicates authentication failure
+      if (res.status === 401 || res.status === 403) {
+        localStorage.clear();
+        router.push("/psychiatryst/login");
+        return;
+      }
+      
       const data = await res.json();
       if (!data.success) setError(data.message || `Failed to update status to ${newStatus}.`);
       await fetchRequests();
     } catch (err) {
+      console.error("Error updating status:", err);
       setError(`Failed to update status to ${newStatus}.`);
     }
     setLoading(false);
@@ -60,12 +136,39 @@ export default function PsychiatristReferralRequestsPage() {
     setLoading(true);
     setError("");
     try {
-      await fetch(`/api/referral_requests/${id}`, { method: "DELETE" });
+      const token = localStorage.getItem('psychiatrystToken');
+      const response = await fetch(`http://localhost:5000/api/referral-requests/${id}`, { 
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      
+      // Check if API response indicates authentication failure
+      if (response.status === 401 || response.status === 403) {
+        localStorage.clear();
+        router.push("/psychiatryst/login");
+        return;
+      }
+      
       await fetchRequests();
     } catch (err) {
+      console.error("Error deleting request:", err);
       setError("Failed to delete referral request.");
     }
     setLoading(false);
+  }
+
+  // Show loading state while checking authentication
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Verifying authentication...</p>
+        </div>
+      </div>
+    );
   }
 
   const filteredRequests = requests.filter(r =>
@@ -74,20 +177,20 @@ export default function PsychiatristReferralRequestsPage() {
   );
 
   return (
-    <div className="min-h-screen flex bg-[#f4f7fd]">
+    <div className="min-h-screen w-full flex bg-white">
       <PsychiatristSidebar activePage="REFERRALS" />
-      <main className="flex-1 px-8 py-10">
-        <div className="max-w-3xl mx-auto">
+      <main className="flex-1 w-full px-4 py-6 sm:px-8 sm:py-10 bg-white min-h-screen">
+        <div className="max-w-3xl mx-auto w-full">
           <div className="flex items-center gap-2 mb-6">
             <Mail size={22} className="text-blue-600" />
             <h1 className="text-2xl font-bold text-gray-900">Pending Referral Requests</h1>
           </div>
-          <div className="flex gap-4 mb-6 items-center">
+          <div className="flex flex-col sm:flex-row gap-4 mb-6 items-center w-full">
             <label className="font-medium text-gray-700">Filter by status:</label>
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-4 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-200"
+              className="border border-gray-300 rounded-lg px-4 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-200 bg-white"
             >
               <option value="Pending">Pending</option>
               <option value="Accepted">Accepted</option>
@@ -97,7 +200,7 @@ export default function PsychiatristReferralRequestsPage() {
             <input
               type="text"
               placeholder="Search by patient name"
-              className="border border-gray-300 rounded-lg px-4 py-2 w-80 text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-200"
+              className="border border-gray-300 rounded-lg px-4 py-2 w-full sm:w-80 text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-200 bg-white"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -111,7 +214,7 @@ export default function PsychiatristReferralRequestsPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredRequests.map(req => (
-                <div key={req.id} className="bg-white rounded-2xl shadow p-6 flex flex-col gap-2">
+                <div key={req.id} className="bg-white rounded-2xl shadow p-6 flex flex-col gap-2 w-full">
                   <div className="flex items-center gap-2 mb-2">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[req.status] || "bg-gray-100 text-gray-800"}`}>{req.status}</span>
                     <span className="ml-auto text-xs text-gray-500">{req.created_at ? req.created_at.replace('T', ' ').substring(0, 19) : ''}</span>

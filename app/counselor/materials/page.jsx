@@ -31,7 +31,7 @@ export default function CounselorMaterialsPage() {
 
   async function fetchMaterials() {
     setLoading(true);
-    const res = await fetch("http://194.164.148.171:5000/api/materials");
+    const res = await fetch("http://localhost:5000/api/materials");
     const data = await res.json();
     setMaterials(groupByType(data.data || []));
     setLoading(false);
@@ -52,7 +52,7 @@ export default function CounselorMaterialsPage() {
 
   async function handleDelete(type, id) {
     if (!window.confirm("Are you sure you want to delete this material?")) return;
-    await fetch(`http://194.164.148.171:5000/api/materials/${id}`, { method: "DELETE" });
+    await fetch(`http://localhost:5000/api/materials/${id}`, { method: "DELETE" });
     fetchMaterials();
   }
 
@@ -60,13 +60,13 @@ export default function CounselorMaterialsPage() {
     e.preventDefault();
     if (!form.title || !form.upload) return;
     if (modal.type === "add") {
-      await fetch("http://194.164.148.171:5000/api/materials", {
+      await fetch("http://localhost:5000/api/materials", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, type: modal.matType })
       });
     } else if (modal.type === "edit") {
-      await fetch(`http://194.164.148.171:5000/api/materials/${form.id}`, {
+      await fetch(`http://localhost:5000/api/materials/${form.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form)
@@ -77,9 +77,9 @@ export default function CounselorMaterialsPage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-[#f7fafc] to-[#eaf3fa]">
+    <div className="min-h-screen w-full flex bg-white">
       <CounselorSidebar activePage="MATERIALS" />
-      <main className="flex-1 p-10">
+      <main className="flex-1 w-full p-4 sm:p-10">
         <h1 className="text-3xl font-bold text-blue-800 mb-8">Materials</h1>
         {loading ? <div>Loading...</div> : (
         <div className="flex flex-col gap-8">

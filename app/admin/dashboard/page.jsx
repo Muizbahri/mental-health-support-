@@ -13,6 +13,8 @@ import {
   ArrowRight,
   Calendar
 } from "lucide-react";
+import AdminSidebar from '../Sidebar';
+import NotificationDrawer from '../../../components/NotificationDrawer';
 
 const sidebarMenu = [
   { icon: <Home size={20} />, label: "Dashboard", path: "/admin/dashboard" },
@@ -35,56 +37,24 @@ export default function AdminDashboard() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-tr from-blue-50 to-pink-50 flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white rounded-3xl shadow-xl m-6 flex flex-col p-6 justify-between">
-        <div>
-          <div className="flex items-center mb-10">
-            <Image src="/brain-logo.png" width={36} height={36} alt="Logo" className="mr-3" />
-            <span className="font-semibold text-lg text-gray-700">MENTAL HEALTH CARE</span>
-          </div>
-          <nav>
-            <ul className="space-y-2">
-              {sidebarMenu.map((item, idx) => (
-                <li key={item.label}>
-                  <button
-                    className={`flex items-center w-full px-4 py-2 rounded-lg text-gray-700 hover:bg-blue-50 transition font-medium ${idx === 0 ? 'bg-blue-50' : ''}`}
-                    tabIndex={0}
-                    onClick={() => {
-                      if (item.path) router.push(item.path);
-                    }}
-                  >
-                    {item.icon}
-                    <span className="ml-3">{item.label}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </div>
-        <button
-          className="flex items-center gap-2 mt-8 px-4 py-2 rounded-lg text-red-600 hover:bg-red-50 font-medium transition"
-          onClick={() => {
-            localStorage.removeItem('adminToken');
-            router.push('/admin/login');
-          }}
-        >
-          <LogOut size={20} />
-          Log Out
-        </button>
-      </aside>
-      {/* Main Content */}
-      <main className="flex-1 p-10">
+    <div className="min-h-screen bg-gradient-to-tr from-blue-50 to-pink-50 flex flex-col md:flex-row">
+      <AdminSidebar />
+      <main className="flex-1 p-4 md:p-10">
         {/* Welcome/Profile */}
-        <div className="flex items-center mb-8">
-          <Image src="/admin-mental.png" width={48} height={48} alt="Admin Avatar" className="rounded-full mr-4" />
-          <div>
-            <div className="text-2xl font-semibold text-gray-800">Welcome, Admin!</div>
-            <div className="text-gray-500 text-sm">System Administrator</div>
+        <div className="flex flex-col sm:flex-row items-center mb-8 gap-4 sm:gap-0 justify-between">
+          <div className="flex items-center gap-4">
+            <Image src="/admin-mental.png" width={48} height={48} alt="Admin Avatar" className="rounded-full mr-0 sm:mr-4" />
+            <div className="text-center sm:text-left">
+              <div className="text-xl md:text-2xl font-semibold text-gray-800">Welcome, Admin!</div>
+              <div className="text-gray-500 text-sm">System Administrator</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <NotificationDrawer />
           </div>
         </div>
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8 mb-10">
           <SummaryCard
             icon={<Users size={32} className="text-blue-500" />}
             title="Manage User"
