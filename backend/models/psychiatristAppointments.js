@@ -42,7 +42,10 @@ exports.getPsychiatristAppointmentsByUserId = async (user_public_id) => {
                u.full_name as name_patient, u.email as patient_email, u.phone_number as patient_phone
                FROM psychiatrist_appointments pa
                LEFT JOIN user_public u ON pa.user_public_id = u.id
-               WHERE pa.user_public_id = ? ORDER BY pa.date_time DESC`;
+               WHERE pa.user_public_id = ? 
+                 AND pa.date_time >= NOW()
+                 AND pa.status IN ('Accepted', 'In Progress')
+               ORDER BY pa.date_time ASC`;
   const [rows] = await db.query(sql, [user_public_id]);
   return rows;
 };

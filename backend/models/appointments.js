@@ -91,7 +91,10 @@ exports.getAppointmentsByUserId = async (user_public_id) => {
                u.full_name as name_patient, u.email as patient_email, u.phone_number as patient_phone
                FROM appointments a 
                LEFT JOIN user_public u ON a.user_public_id = u.id 
-               WHERE a.user_public_id = ? ORDER BY a.date_time DESC`;
+               WHERE a.user_public_id = ? 
+                 AND a.date_time >= NOW()
+                 AND a.status IN ('Accepted', 'In Progress')
+               ORDER BY a.date_time ASC`;
   const [rows] = await db.query(sql, [user_public_id]);
   return rows;
 };
