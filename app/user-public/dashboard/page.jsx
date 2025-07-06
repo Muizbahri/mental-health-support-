@@ -572,10 +572,10 @@ export default function PublicDashboard() {
     fetchProfessionals();
 
     const fetchAppointments = async () => {
-      const userName = localStorage.getItem("full_name");
-      if (userName) {
+      const userPublicId = localStorage.getItem("user_public_id");
+      if (userPublicId) {
         try {
-          const res = await fetch(`/api/appointments?user=${encodeURIComponent(userName)}`);
+          const res = await fetch(`/api/appointments?user_public_id=${encodeURIComponent(userPublicId)}`);
           if (res.ok) {
             const data = await res.json();
             setAppointments(data.data || []);
