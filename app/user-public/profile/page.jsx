@@ -227,6 +227,10 @@ export default function ProfilePage() {
         delete userToStore.password;
         localStorage.setItem("publicUser", JSON.stringify(userToStore));
         
+        // Update individual localStorage items for components that use them
+        localStorage.setItem("full_name", user.full_name?.trim() || "");
+        localStorage.setItem("email", user.email?.trim() || "");
+        
         // Reset password fields
         setCurrentPassword("");
         setNewPassword("");

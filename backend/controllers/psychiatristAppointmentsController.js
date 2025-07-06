@@ -77,7 +77,24 @@ exports.createPsychiatristAppointment = async (req, res) => {
 exports.updatePsychiatristAppointment = async (req, res) => {
     try {
         const { psychiatrist_id, id } = req.params;
-        const { name_patient, contact, assigned_to, status, date_time } = req.body;
+        let { name_patient, contact, assigned_to, status, date_time, user_public_id } = req.body;
+        
+        // Fetch current appointment if name_patient or user_public_id is missing or blank
+        let currentAppointment = null;
+        if (!name_patient || name_patient.trim() === "" || !user_public_id) {
+            const [rows] = await db.query('SELECT name_patient, user_public_id FROM psychiatrist_appointments WHERE id = ?', [id]);
+            if (rows.length > 0) {
+                currentAppointment = rows[0];
+                if (!name_patient || name_patient.trim() === "") {
+                    name_patient = currentAppointment.name_patient;
+                }
+                if (!user_public_id) {
+                    user_public_id = currentAppointment.user_public_id;
+                }
+            } else {
+                return res.status(404).json({ success: false, message: 'Appointment not found for update' });
+            }
+        }
         
         console.log('Updating psychiatrist appointment:', {
             id,
@@ -86,13 +103,14 @@ exports.updatePsychiatristAppointment = async (req, res) => {
             contact,
             assigned_to,
             status,
-            date_time
+            date_time,
+            user_public_id
         });
         
-        if (!name_patient || !contact || !assigned_to || !status || !date_time) {
+        if (!name_patient || !contact || !assigned_to || !status || !date_time || !user_public_id) {
             return res.status(400).json({ 
                 success: false, 
-                message: 'Missing required fields: name_patient, contact, assigned_to, status, date_time' 
+                message: 'Missing required fields: name_patient, contact, assigned_to, status, date_time, user_public_id' 
             });
         }
         
@@ -112,6 +130,7 @@ exports.updatePsychiatristAppointment = async (req, res) => {
         
         const success = await psychiatristAppointmentsModel.updatePsychiatristAppointment(id, {
             name_patient,
+            user_public_id,
             contact,
             assigned_to,
             psychiatrist_id,

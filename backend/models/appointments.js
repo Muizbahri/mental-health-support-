@@ -1,63 +1,130 @@
 const db = require('../config/db');
 
-exports.createAppointment = async ({ role, name_patient, contact, assigned_to, status, date_time, created_by, counselor_id }) => {
+function toMySQLDatetime(str) {
+  if (!str) return str;
+  // If already in 'YYYY-MM-DD HH:MM:SS' format
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(str)) return str;
+  // If 'YYYY-MM-DDTHH:MM:SS'
+  if (str.length === 19 && str[10] === 'T') return str.replace('T', ' ');
+  // If 'YYYY-MM-DDTHH:MM'
+  if (str.length === 16 && str[10] === 'T') return str.replace('T', ' ') + ':00';
+  // If 'YYYY-MM-DD HH:MM'
+  if (str.length === 16 && str[10] === ' ') return str + ':00';
+  return str;
+}
+
+exports.createAppointment = async ({ role, user_public_id, contact, assigned_to, status, date_time, created_by, counselor_id }) => {
+  // Fetch the latest full_name from user_public
+  const [userRows] = await db.query('SELECT full_name FROM user_public WHERE id = ?', [user_public_id]);
+  const name_patient = userRows[0]?.full_name || '';
+
   const [result] = await db.query(
-    'INSERT INTO appointments (role, name_patient, contact, assigned_to, counselor_id, status, date_time, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())',
-    [role, name_patient, contact, assigned_to, counselor_id, status, date_time, created_by]
+    'INSERT INTO appointments (role, name_patient, user_public_id, contact, assigned_to, counselor_id, status, date_time, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+    [role, name_patient, user_public_id, contact, assigned_to, counselor_id, status, date_time, created_by]
   );
   return result.insertId;
 };
 
 exports.getAppointments = async (filter = {}) => {
-  let sql = "SELECT id, role, name_patient, contact, assigned_to, counselor_id, created_by, status, DATE_FORMAT(date_time, '%Y-%m-%d %H:%i:%s') as date_time, created_at FROM appointments";
+  let sql = `SELECT a.id, a.role, a.user_public_id, a.contact, a.assigned_to, a.counselor_id, a.created_by, a.status, 
+             DATE_FORMAT(a.date_time, '%Y-%m-%d %H:%i:%s') as date_time, a.created_at,
+             u.full_name as name_patient, u.email as patient_email, u.phone_number as patient_phone
+             FROM appointments a
+             LEFT JOIN user_public u ON a.user_public_id = u.id`;
   const params = [];
   const conditions = [];
+  
   if (filter.id) {
-    conditions.push("id = ?");
+    conditions.push("a.id = ?");
     params.push(filter.id);
   }
   if (filter.role) {
-    conditions.push("role = ?");
+    conditions.push("a.role = ?");
     params.push(filter.role);
   }
-  if (filter.user) {
-    conditions.push("name_patient = ?");
-    params.push(filter.user);
+  if (filter.user_public_id) {
+    conditions.push("a.user_public_id = ?");
+    params.push(filter.user_public_id);
   }
   if (filter.counselor_id) {
-    conditions.push("counselor_id = ?");
+    conditions.push("a.counselor_id = ?");
     params.push(filter.counselor_id);
   }
   if (filter.assigned_to || filter.assigned_to_fullname || filter.created_by) {
-    conditions.push("(assigned_to = ? OR assigned_to = ? OR created_by = ?)");
+    conditions.push("(a.assigned_to = ? OR a.assigned_to = ? OR a.created_by = ?)");
     params.push(filter.assigned_to, filter.assigned_to_fullname, filter.created_by);
   } else {
     if (filter.created_by) {
-      conditions.push("created_by = ?");
+      conditions.push("a.created_by = ?");
       params.push(filter.created_by);
     }
     if (filter.assigned_to) {
-      conditions.push("assigned_to = ?");
+      conditions.push("a.assigned_to = ?");
       params.push(filter.assigned_to);
     }
   }
+  
   if (conditions.length > 0) {
     sql += " WHERE " + conditions.join(" AND ");
   }
+  
+  sql += " ORDER BY a.date_time DESC";
+  
   const [rows] = await db.query(sql, params);
   return rows;
 };
 
 exports.getAppointmentsByAssignee = async (assigned_to) => {
-  const sql = `SELECT a.id, a.role, a.name_patient, a.contact, a.assigned_to, a.status, DATE_FORMAT(a.date_time, '%Y-%m-%d %H:%i:%s') as date_time, a.created_at, u.email as patient_email FROM appointments a LEFT JOIN user_public u ON a.name_patient = u.full_name WHERE a.assigned_to = ? ORDER BY a.date_time DESC`;
+  const sql = `SELECT a.id, a.role, a.user_public_id, a.contact, a.assigned_to, a.status, 
+               DATE_FORMAT(a.date_time, '%Y-%m-%d %H:%i:%s') as date_time, a.created_at, 
+               u.full_name as name_patient, u.email as patient_email, u.phone_number as patient_phone
+               FROM appointments a 
+               LEFT JOIN user_public u ON a.user_public_id = u.id 
+               WHERE a.assigned_to = ? ORDER BY a.date_time DESC`;
   const [rows] = await db.query(sql, [assigned_to]);
   return rows;
 };
 
-exports.updateAppointment = async (id, { role, name_patient, contact, assigned_to, status, date_time, created_by }) => {
+exports.getAppointmentsByUserId = async (user_public_id) => {
+  const sql = `SELECT a.id, a.role, a.user_public_id, a.contact, a.assigned_to, a.status, 
+               DATE_FORMAT(a.date_time, '%Y-%m-%d %H:%i:%s') as date_time, a.created_at, 
+               u.full_name as name_patient, u.email as patient_email, u.phone_number as patient_phone
+               FROM appointments a 
+               LEFT JOIN user_public u ON a.user_public_id = u.id 
+               WHERE a.user_public_id = ? ORDER BY a.date_time DESC`;
+  const [rows] = await db.query(sql, [user_public_id]);
+  return rows;
+};
+
+exports.updateAppointment = async (id, { role, user_public_id, contact, assigned_to, status, date_time, created_by, counselor_id, name_patient }) => {
+  // If name_patient, user_public_id, or counselor_id is not provided, fetch the current value
+  let finalNamePatient = name_patient;
+  let finalUserPublicId = user_public_id;
+  let finalCounselorId = counselor_id;
+  if (!finalNamePatient || !finalUserPublicId || !finalCounselorId) {
+    const [rows] = await db.query('SELECT name_patient, user_public_id, counselor_id FROM appointments WHERE id = ?', [id]);
+    if (rows.length > 0) {
+      if (!finalNamePatient) finalNamePatient = rows[0].name_patient;
+      if (!finalUserPublicId) finalUserPublicId = rows[0].user_public_id;
+      if (!finalCounselorId) finalCounselorId = rows[0].counselor_id;
+    }
+  }
+  // Fetch the latest full_name from user_public if user_public_id is provided
+  if (finalUserPublicId) {
+    const [userRows] = await db.query('SELECT full_name FROM user_public WHERE id = ?', [finalUserPublicId]);
+    finalNamePatient = userRows[0]?.full_name || finalNamePatient;
+  }
+  // Fetch the current date_time from DB
+  const [rows2] = await db.query('SELECT date_time FROM appointments WHERE id = ?', [id]);
+  const currentDateTime = rows2[0]?.date_time;
+  // Determine which date_time to use
+  let mysqlDateTime = currentDateTime;
+  if (date_time && toMySQLDatetime(date_time) !== currentDateTime) {
+    mysqlDateTime = toMySQLDatetime(date_time);
+  }
   const [result] = await db.query(
-    'UPDATE appointments SET role=?, name_patient=?, contact=?, assigned_to=?, status=?, date_time=?, created_by=? WHERE id=?',
-    [role, name_patient, contact, assigned_to, status, date_time, created_by, id]
+    'UPDATE appointments SET role=?, name_patient=?, user_public_id=?, contact=?, assigned_to=?, counselor_id=?, status=?, date_time=?, created_by=? WHERE id=?',
+    [role, finalNamePatient, finalUserPublicId, contact, assigned_to, finalCounselorId, status, mysqlDateTime, created_by, id]
   );
   return result.affectedRows > 0;
 };

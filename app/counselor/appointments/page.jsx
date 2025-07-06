@@ -66,12 +66,25 @@ export default function CounselorAppointmentsPage() {
   function openEditModal(appt) {
     setModalMode("edit");
     setCurrent(appt);
+    // Parse date/time from date_time if available
+    let dateValue = "";
+    let timeValue = "";
+    if (appt.date_time) {
+      const appointmentDate = new Date(appt.date_time);
+      if (!isNaN(appointmentDate.getTime())) {
+        dateValue = appointmentDate.toISOString().split('T')[0];
+        timeValue = appointmentDate.toTimeString().split(' ')[0].substring(0, 5);
+      }
+    }
     setForm({
-      date: appt.date || "",
-      time: appt.time || "",
+      date: dateValue,
+      time: timeValue,
       client_name: appt.name_patient || "",
       contact: appt.contact || "",
-      status: appt.status || "Accepted"
+      status: appt.status || "Accepted",
+      user_public_id: appt.user_public_id || "",
+      counselor_id: appt.counselor_id || "",
+      assigned_to: appt.assigned_to || ""
     });
     setShowModal(true);
   }
@@ -90,11 +103,22 @@ export default function CounselorAppointmentsPage() {
     e.preventDefault();
     const user = userRef.current;
     if (!user) return;
+    // Always use all current values for the update payload
+    let userPublicId = form.user_public_id;
+    let counselorId = form.counselor_id;
+    let assignedTo = form.assigned_to;
+    if (current) {
+      if (!userPublicId) userPublicId = current.user_public_id;
+      if (!counselorId) counselorId = current.counselor_id;
+      if (!assignedTo) assignedTo = current.assigned_to;
+    }
     const payload = {
       role: "Counselor",
       name_patient: form.client_name,
+      user_public_id: userPublicId,
+      counselor_id: counselorId,
       contact: form.contact,
-      assigned_to: user.full_name,
+      assigned_to: assignedTo,
       status: form.status,
       date_time: form.date + (form.time ? ` ${form.time}` : ""),
       created_by: user.email

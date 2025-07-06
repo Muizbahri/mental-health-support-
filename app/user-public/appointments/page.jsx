@@ -31,17 +31,26 @@ export default function AppointmentsPage() {
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [editingAppointment, setEditingAppointment] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [originalDateTime, setOriginalDateTime] = useState('');
+  const [selectedDoctorId, setSelectedDoctorId] = useState(null);
+  const [originalDate, setOriginalDate] = useState('');
+  const [originalTime, setOriginalTime] = useState('');
+  const [originalCounselorId, setOriginalCounselorId] = useState(null);
+  const [originalCounselorName, setOriginalCounselorName] = useState('');
 
   // Helper function to fetch appointments
   const fetchUserAppointments = async () => {
-    const userName = localStorage.getItem("full_name");
-    const userEmail = localStorage.getItem("email");
+    const userPublicId = localStorage.getItem("user_public_id");
 
-    console.log('Fetching appointments for user:', { userName, userEmail });
+    console.log('Fetching appointments for user_public_id:', userPublicId);
+
+    if (!userPublicId) {
+      console.error('No user_public_id found in localStorage');
+      return [];
+    }
 
     try {
-      // Try fetching with full name first
-      const res = await fetch(`${BASE_URL}/api/appointments?user=${encodeURIComponent(userName)}`);
+      const res = await fetch(`${BASE_URL}/api/appointments?user_public_id=${userPublicId}`);
       
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -53,46 +62,55 @@ export default function AppointmentsPage() {
       let appts = [];
       if (data && data.success && Array.isArray(data.data)) {
         appts = data.data;
-        console.log('Found appointments with full name:', appts);
+        console.log('Found appointments:', appts);
       }
       
-      // If no appointments found with full name and we have an email, try with email
-      if (appts.length === 0 && userEmail) {
-        console.log('No appointments found with full name, trying with email:', userEmail);
-        const emailRes = await fetch(`${BASE_URL}/api/appointments?user=${encodeURIComponent(userEmail)}`);
-        const emailData = await emailRes.json();
-        
-        if (emailData && emailData.success && Array.isArray(emailData.data)) {
-          console.log('Found appointments with email:', emailData.data);
-          appts = emailData.data;
-        }
-      }
+      // Sort appointments by date/time (upcoming first)
+      appts.sort((a, b) => {
+        const dateA = new Date(a.date_time);
+        const dateB = new Date(b.date_time);
+        return dateA - dateB;
+      });
       
-             // Sort appointments by date/time (upcoming first)
-       appts.sort((a, b) => {
-         const dateA = new Date(a.date_time);
-         const dateB = new Date(b.date_time);
-         return dateA - dateB;
-       });
-       
-       return appts;
-     } catch (err) {
-       console.error('Error fetching appointments:', err);
-       return [];
-     }
-   };
+      return appts;
+    } catch (err) {
+      console.error('Error fetching appointments:', err);
+      return [];
+    }
+  };
 
   // Fetch user info and their appointments
   useEffect(() => {
     const token = localStorage.getItem("publicToken");
-    const userName = localStorage.getItem("full_name");
+    const userPublicId = localStorage.getItem("user_public_id");
 
-    if (!token || !userName) {
+    if (!token || !userPublicId) {
       router.push("/user-public/login");
       return;
     }
 
-    setPatientName(userName);
+    // Fetch current user profile to get the latest name
+    fetch(`${BASE_URL}/api/public-users/profile/me`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success && data.data) {
+        setPatientName(data.data.full_name);
+        localStorage.setItem("full_name", data.data.full_name); // Update localStorage with latest name
+      }
+    })
+    .catch(err => {
+      console.error('Error fetching user profile:', err);
+      // Fallback to localStorage name if profile fetch fails
+      const fallbackName = localStorage.getItem("full_name");
+      if (fallbackName) {
+        setPatientName(fallbackName);
+      }
+    });
+
     setLoadingAppointments(true);
 
     fetchUserAppointments()
@@ -240,56 +258,76 @@ export default function AppointmentsPage() {
       return; // Prevent form submission
     }
 
-    const appointmentData = {
-      role: type,
-      name_patient: patientName,
-      assigned_to: selectedDoctor,
-      status: 'In Progress', // Keep status consistent
-      date_time: `${date}T${time}:00`, // Ensure ISO 8601 format for backend
-      contact: localStorage.getItem("email") || "user@example.com" // Get user's email from localStorage
-    };
-
-    try {
-      let res;
-      if (editingAppointment) {
-        // Update existing appointment
-        console.log('Updating appointment with ID:', editingAppointment.id || editingAppointment.appointment_id);
-        console.log('Editing appointment object:', editingAppointment);
-        console.log('Update data:', appointmentData);
-        
-        if (!editingAppointment.id && !editingAppointment.appointment_id) {
-          alert('Error: Appointment ID is missing. Cannot update appointment.');
-          console.error('Full appointment object:', editingAppointment);
-          return;
-        }
-        
-        // Use id or appointment_id as fallback
-        const appointmentId = editingAppointment.id || editingAppointment.appointment_id;
-        
-        res = await fetch(`${BASE_URL}/api/appointments/${appointmentId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(appointmentData)
-        });
-      } else {
-        // Create new appointment
-        res = await fetch(`${BASE_URL}/api/appointments/create`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(appointmentData)
-        });
+    if (editingAppointment) {
+      // Compare current and original values
+      const dateChanged = date !== originalDate;
+      const timeChanged = time !== originalTime;
+      const doctorChanged = selectedDoctorId !== originalCounselorId && selectedDoctor !== originalCounselorName;
+      let newDateValue = date;
+      let newTimeValue = time;
+      let newDoctorId = selectedDoctorId;
+      let newDoctorName = selectedDoctor;
+      // If only date changed
+      if (dateChanged && !timeChanged && !doctorChanged) {
+        newTimeValue = originalTime;
+        newDoctorId = originalCounselorId;
+        newDoctorName = originalCounselorName;
       }
-
+      // If only time changed
+      else if (!dateChanged && timeChanged && !doctorChanged) {
+        newDateValue = originalDate;
+        newDoctorId = originalCounselorId;
+        newDoctorName = originalCounselorName;
+      }
+      // If only doctor changed
+      else if (!dateChanged && !timeChanged && doctorChanged) {
+        newDateValue = originalDate;
+        newTimeValue = originalTime;
+      }
+      // If date and time changed
+      else if (dateChanged && timeChanged && !doctorChanged) {
+        newDoctorId = originalCounselorId;
+        newDoctorName = originalCounselorName;
+      }
+      // If date and doctor changed
+      else if (dateChanged && !timeChanged && doctorChanged) {
+        newTimeValue = originalTime;
+      }
+      // If time and doctor changed
+      else if (!dateChanged && timeChanged && doctorChanged) {
+        newDateValue = originalDate;
+      }
+      // If all changed, use all new values
+      // Compose newDateTime
+      const newDateTime = `${newDateValue}T${newTimeValue.length === 5 ? newTimeValue : newTimeValue.slice(0,5)}`;
+      // Always include all required fields in the payload
+      const appointmentData = {
+        role: editingAppointment.role,
+        user_public_id: editingAppointment.user_public_id,
+        assigned_to: newDoctorName,
+        status: editingAppointment.status,
+        contact: editingAppointment.contact,
+        date_time: newDateTime,
+      };
+      if (editingAppointment.role === 'Counselor') {
+        appointmentData.counselor_id = newDoctorId;
+      } else if (editingAppointment.role === 'Psychiatrist') {
+        appointmentData.psychiatrist_id = newDoctorId;
+      }
+      let res;
+      const appointmentId = editingAppointment.id || editingAppointment.appointment_id;
+      res = await fetch(`${BASE_URL}/api/appointments/${appointmentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(appointmentData)
+      });
       const data = await res.json();
       console.log('Response status:', res.status);
       console.log('Response data:', data);
-      
       if (res.ok) {
-        alert(`Appointment ${editingAppointment ? 'updated' : 'booked'} successfully!`);
+        alert(`Appointment updated successfully!`);
         setShowModal(false);
-        setEditingAppointment(null); // Reset editing state
-        
-        // Refresh appointments list to show the new/updated appointment
+        setEditingAppointment(null);
         setLoadingAppointments(true);
         fetchUserAppointments()
           .then(appointments => {
@@ -297,28 +335,59 @@ export default function AppointmentsPage() {
           })
           .finally(() => setLoadingAppointments(false));
       } else {
-        console.error('Error response:', data);
-        
-        // Determine error message to show
-        let errorMessage = 'Unknown error occurred';
-        if (data.error) {
-          errorMessage = data.error;
-        } else if (data.message) {
-          errorMessage = data.message;
-        } else {
-          errorMessage = `Server returned status ${res.status}`;
-        }
-        
-        // Check if it's a conflict error (409 status) and show appropriate message
+        let errorMessage = data.error || data.message || `Server returned status ${res.status}`;
         if (res.status === 409) {
           alert(errorMessage || 'This time slot is already booked. Please choose another hour.');
         } else {
-          alert(`Failed to ${editingAppointment ? 'update' : 'book'} appointment: ${errorMessage}`);
+          alert(`Failed to update appointment: ${errorMessage}`);
         }
       }
-    } catch (err) {
-      console.error('Request error:', err);
-      alert('Server error.');
+      return;
+    } else {
+      // Booking a new appointment (not editing)
+      const newDateTime = `${date}T${time.length === 5 ? time : time.slice(0,5)}`;
+      const appointmentData = {
+        role: type,
+        user_public_id: localStorage.getItem("user_public_id"),
+        assigned_to: selectedDoctor,
+        status: 'In Progress',
+        contact: localStorage.getItem("email") || "user@example.com",
+        date_time: newDateTime,
+      };
+      if (type === 'Counselor') {
+        appointmentData.counselor_id = selectedDoctorId;
+      } else if (type === 'Psychiatrist') {
+        appointmentData.psychiatrist_id = selectedDoctorId;
+      }
+      try {
+        const res = await fetch(`${BASE_URL}/api/appointments/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(appointmentData)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('Appointment booked successfully!');
+          setShowModal(false);
+          setLoadingAppointments(true);
+          fetchUserAppointments()
+            .then(appointments => {
+              setAppointments(appointments);
+            })
+            .finally(() => setLoadingAppointments(false));
+        } else {
+          let errorMessage = data.error || data.message || `Server returned status ${res.status}`;
+          if (res.status === 409) {
+            alert(errorMessage || 'This time slot is already booked. Please choose another hour.');
+          } else {
+            alert(`Failed to book appointment: ${errorMessage}`);
+          }
+        }
+      } catch (err) {
+        console.error('Request error:', err);
+        alert('Server error.');
+      }
+      return;
     }
   }
 
@@ -369,6 +438,10 @@ export default function AppointmentsPage() {
           const doctor = data.data.find(doc => doc.full_name === appointment.assigned_to);
           setSelectedDoctor(appointment.assigned_to);
           setSelectedDoctorInfo(doctor || null);
+          setSelectedDoctorId(doctor ? doctor.id : null);
+          // Store original counselor/psychiatrist info for comparison
+          setOriginalCounselorId(doctor ? doctor.id : null);
+          setOriginalCounselorName(appointment.assigned_to);
           
           // If the previously assigned doctor is no longer registered, log a warning
           if (!doctor && appointment.assigned_to) {
@@ -377,18 +450,25 @@ export default function AppointmentsPage() {
         } else {
           console.error(`Invalid response format from ${endpoint}:`, data);
           setDoctorList([]);
+          setOriginalCounselorId(null);
+          setOriginalCounselorName(appointment.assigned_to);
         }
       })
       .catch(err => {
         console.error(`Rescheduling: Error fetching ${appointment.role}s:`, err);
         // Still set the name even if we couldn't fetch the full info
         setSelectedDoctor(appointment.assigned_to);
+        setOriginalCounselorId(null);
+        setOriginalCounselorName(appointment.assigned_to);
       })
       .finally(() => setLoadingDoctors(false));
     
     setDate(dateToSet);
     setTime(timePart);
     setShowModal(true);
+    setOriginalDateTime(appointment.date_time); // Store the original datetime string
+    setOriginalDate(datePart);
+    setOriginalTime(timePart);
   }
 
   function handleAddNewClick() {
@@ -493,9 +573,9 @@ export default function AppointmentsPage() {
                     value={selectedDoctor}
                     onChange={(e) => {
                       setSelectedDoctor(e.target.value);
-                      // Find the selected doctor/psychiatrist's full information
                       const selected = doctorList.find(doc => doc.full_name === e.target.value);
                       setSelectedDoctorInfo(selected || null);
+                      setSelectedDoctorId(selected ? selected.id : null);
                     }}
                     required
                     disabled={!type || loadingDoctors}

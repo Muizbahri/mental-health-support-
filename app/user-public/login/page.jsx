@@ -48,6 +48,7 @@ export default function PublicLoginPage() {
       if (data.success) {
         localStorage.setItem("publicUser", JSON.stringify(data.user));
         localStorage.setItem("publicToken", data.token);
+        localStorage.setItem("user_public_id", data.user.id.toString());
         localStorage.setItem("full_name", data.user.full_name?.trim() || "");
         localStorage.setItem("email", data.user.email?.trim() || "");
         router.push("/user-public/dashboard");
