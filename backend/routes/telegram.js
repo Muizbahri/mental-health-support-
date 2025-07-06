@@ -2,24 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { sendTelegramMessage, findNearestProfessionals } = require('../utils/telegram');
 
-// Import bot instance and handlers from utils
-const TelegramBot = require('node-telegram-bot-api');
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN);
-
-// Webhook endpoint to receive messages from Telegram
-router.post('/webhook', (req, res) => {
-  try {
-    const update = req.body;
-    
-    // Process the update using the bot's processUpdate method
-    bot.processUpdate(update);
-    
-    res.sendStatus(200);
-  } catch (error) {
-    console.error('Error processing webhook:', error);
-    res.sendStatus(500);
-  }
-});
+// Bot instance is now handled in utils/telegram.js with polling mode
 
 // Test route (already working)
 router.get('/test', (req, res) => {
