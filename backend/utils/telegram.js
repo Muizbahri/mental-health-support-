@@ -4,14 +4,24 @@ const fetch = require('node-fetch');
 
 const token = process.env.TELEGRAM_BOT_TOKEN || 'fallback-token';
 
-// Initialize bot with polling enabled
+// Initialize bot WITHOUT polling for webhook mode
 let bot;
-if (require.main === module) {
-  bot = new TelegramBot(token, { polling: true });
-  console.log('Telegram bot started (standalone)');
+if (process.env.NODE_ENV === 'production' || process.env.USE_WEBHOOK === 'true') {
+  // Webhook mode - no polling
+  bot = new TelegramBot(token);
+  console.log('Telegram bot loaded for webhook mode');
+  
+  // Set webhook URL if BASE_URL is provided
+  if (process.env.BASE_URL) {
+    const webhookUrl = `${process.env.BASE_URL}/api/telegram/webhook`;
+    bot.setWebHook(webhookUrl)
+      .then(() => console.log(`Webhook set to: ${webhookUrl}`))
+      .catch(err => console.error('Error setting webhook:', err));
+  }
 } else {
-  bot = new TelegramBot(token, { polling: true });
-  console.log('Telegram bot loaded as module (polling enabled)');
+  // Fallback for development - but this should be disabled in production
+  bot = new TelegramBot(token, { polling: false });
+  console.log('Telegram bot loaded (webhook mode - polling disabled)');
 }
 
 // In-memory store for user assessment states

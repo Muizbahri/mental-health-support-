@@ -98,8 +98,10 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something broke!' });
 });
 
+// Initialize database connection
+require('./models/db');
+
 // Start server
-require('./utils/telegram');
 app.listen(PORT, () => {
   console.log(`Backend running on port ${PORT}`);
 });

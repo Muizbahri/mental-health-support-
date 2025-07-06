@@ -79,9 +79,9 @@ exports.getAppointmentsByAssignee = async (req, res) => {
 exports.updateAppointment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { role, name_patient, contact, assigned_to, status, date_time } = req.body;
+    let { role, name_patient, contact, assigned_to, status, date_time, user_public_id, counselor_id } = req.body;
     const user = req.user;
-    // Fetch the appointment to check ownership
+    // Fetch the appointment to check ownership and get current values
     const [appointment] = await appointmentsModel.getAppointments({ id });
     if (!appointment) {
       return res.status(404).json({ success: false, message: 'Appointment not found.' });
@@ -89,7 +89,11 @@ exports.updateAppointment = async (req, res) => {
     if (user.role !== 'admin' && appointment.created_by !== user.email && appointment.assigned_to !== user.full_name) {
       return res.status(403).json({ success: false, message: 'Not authorized.' });
     }
-    const success = await appointmentsModel.updateAppointment(id, { role, name_patient, contact, assigned_to, status, date_time, created_by: appointment.created_by });
+    // Retain original values if missing in payload
+    if (!name_patient || name_patient.trim() === "") name_patient = appointment.name_patient;
+    if (!user_public_id) user_public_id = appointment.user_public_id;
+    if (!counselor_id) counselor_id = appointment.counselor_id;
+    const success = await appointmentsModel.updateAppointment(id, { role, name_patient, user_public_id, contact, assigned_to, status, date_time, created_by: appointment.created_by, counselor_id });
     if (!success) {
       return res.status(404).json({ success: false, message: 'Appointment not found.' });
     }
@@ -190,9 +194,9 @@ exports.getPsychiatristAppointmentsForUser = async (req, res) => {
 // Public appointment creation (no authentication required)
 exports.createPublicAppointment = async (req, res) => {
   try {
-    const { role, name_patient, assigned_to, status, date_time, contact } = req.body;
+    const { role, user_public_id, assigned_to, status, date_time, contact } = req.body;
     
-    if (!role || !name_patient || !assigned_to || !status || !date_time) {
+    if (!role || !user_public_id || !assigned_to || !status || !date_time) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
@@ -229,48 +233,50 @@ exports.createPublicAppointment = async (req, res) => {
       }
       
       const appointmentData = {
-        name_patient,
+        user_public_id,
         contact: userContact,
         assigned_to,
         psychiatrist_id: psychiatrist.id,
         status,
         date_time,
-        created_by: name_patient // Use patient name as created_by for public appointments
+        created_by: user_public_id // Use user_public_id as created_by for public appointments
       };
       
       const id = await psychiatristAppointmentsModel.createPsychiatristAppointment(appointmentData);
       return res.status(201).json({ message: 'Psychiatrist appointment created successfully', id });
       
     } else if (role === 'Counselor') {
-      // Find counselor by full name to get counselor_id
-      const counselor = await counselorsModel.getCounselorByFullName(assigned_to);
-      if (!counselor) {
-        return res.status(400).json({ error: 'Assigned counselor not found' });
+      // Use counselor_id from frontend if provided and valid
+      let counselor_id = req.body.counselor_id;
+      let counselor = null;
+      if (!counselor_id) {
+        // Fallback: Find counselor by full name to get counselor_id
+        counselor = await counselorsModel.getCounselorByFullName(assigned_to);
+        if (!counselor) {
+          return res.status(400).json({ error: 'Assigned counselor not found' });
+        }
+        counselor_id = counselor.id;
       }
-      
       // Check for appointment conflict
       const hasConflict = await appointmentsModel.checkAppointmentConflict(
-        counselor.id, 
+        counselor_id, 
         date_time
       );
-      
       if (hasConflict) {
         return res.status(409).json({ 
           error: 'This time slot is already booked. Please choose another hour.' 
         });
       }
-      
       const appointmentData = {
         role,
-        name_patient,
+        user_public_id,
         contact: userContact,
         assigned_to,
         status,
         date_time,
-        created_by: name_patient, // Use patient name as created_by for public appointments
-        counselor_id: counselor.id
+        created_by: user_public_id, // Use user_public_id as created_by for public appointments
+        counselor_id
       };
-      
       const id = await appointmentsModel.createAppointment(appointmentData);
       return res.status(201).json({ message: 'Counselor appointment created successfully', id });
       
@@ -287,43 +293,26 @@ exports.createPublicAppointment = async (req, res) => {
 // Public appointment retrieval (no authentication required)
 exports.getPublicAppointments = async (req, res) => {
   try {
-    const { user } = req.query;
+    const { user_public_id } = req.query;
     
-    if (!user) {
-      return res.status(400).json({ error: 'User parameter is required' });
+    if (!user_public_id) {
+      return res.status(400).json({ error: 'user_public_id parameter is required' });
     }
     
-    console.log('Fetching appointments for user:', user);
+    console.log('Fetching appointments for user_public_id:', user_public_id);
     
-    // Get counselor appointments using broader filter
-    // Filter by both name_patient and created_by to catch appointments created by the user
-    const allCounselorAppointments = await appointmentsModel.getAppointments({});
-    
-    // Filter counselor appointments more robustly
-    const counselorAppointments = allCounselorAppointments.filter(apt => {
-      const nameMatch = apt.name_patient && apt.name_patient.trim().toLowerCase() === user.trim().toLowerCase();
-      const createdByMatch = apt.created_by && apt.created_by.trim().toLowerCase() === user.trim().toLowerCase();
-      return nameMatch || createdByMatch;
-    });
-    
+    // Get counselor appointments using user_public_id
+    const counselorAppointments = await appointmentsModel.getAppointmentsByUserId(user_public_id);
     console.log('Found counselor appointments:', counselorAppointments.length);
     
-    // Get all psychiatrist appointments and filter
-    const allPsychiatristAppointments = await psychiatristAppointmentsModel.getAllPsychiatristAppointments();
-    
-    // Filter psychiatrist appointments more robustly
-    const userPsychiatristAppointments = allPsychiatristAppointments.filter(apt => {
-      const nameMatch = apt.name_patient && apt.name_patient.trim().toLowerCase() === user.trim().toLowerCase();
-      const createdByMatch = apt.created_by && apt.created_by.trim().toLowerCase() === user.trim().toLowerCase();
-      return nameMatch || createdByMatch;
-    });
-    
-    console.log('Found psychiatrist appointments:', userPsychiatristAppointments.length);
+    // Get psychiatrist appointments using user_public_id
+    const psychiatristAppointments = await psychiatristAppointmentsModel.getPsychiatristAppointmentsByUserId(user_public_id);
+    console.log('Found psychiatrist appointments:', psychiatristAppointments.length);
     
     // Combine both appointment types
     const allAppointments = [
       ...counselorAppointments,
-      ...userPsychiatristAppointments.map(apt => ({
+      ...psychiatristAppointments.map(apt => ({
         ...apt,
         role: 'Psychiatrist' // Add role field for consistency
       }))
@@ -342,9 +331,9 @@ exports.getPublicAppointments = async (req, res) => {
 exports.updatePublicAppointment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { role, name_patient, assigned_to, status, date_time, contact } = req.body;
+    const { role, user_public_id, assigned_to, status, date_time, contact } = req.body;
     
-    if (!role || !name_patient || !assigned_to || !status || !date_time) {
+    if (!role || !user_public_id || !assigned_to || !status || !date_time) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
@@ -383,7 +372,7 @@ exports.updatePublicAppointment = async (req, res) => {
       
       // Update in psychiatrist_appointments table
       const success = await psychiatristAppointmentsModel.updatePsychiatristAppointment(id, {
-        name_patient,
+        user_public_id,
         contact: userContact,
         assigned_to,
         psychiatrist_id: psychiatrist.id,
@@ -396,36 +385,39 @@ exports.updatePublicAppointment = async (req, res) => {
       }
       
     } else if (role === 'Counselor') {
-      // Find counselor by full name to get counselor_id
-      const counselor = await counselorsModel.getCounselorByFullName(assigned_to);
-      if (!counselor) {
-        return res.status(400).json({ error: 'Assigned counselor not found' });
+      // Use counselor_id from frontend if provided and valid
+      let counselor_id = req.body.counselor_id;
+      let counselor = null;
+      if (!counselor_id) {
+        // Fallback: Find counselor by full name to get counselor_id
+        counselor = await counselorsModel.getCounselorByFullName(assigned_to);
+        if (!counselor) {
+          return res.status(400).json({ error: 'Assigned counselor not found' });
+        }
+        counselor_id = counselor.id;
       }
-      
       // Check for appointment conflict (excluding current appointment)
       const hasConflict = await appointmentsModel.checkAppointmentConflict(
-        counselor.id, 
+        counselor_id, 
         date_time, 
         id // Exclude current appointment from conflict check
       );
-      
       if (hasConflict) {
         return res.status(409).json({ 
           error: 'This time slot is already booked. Please choose another hour.' 
         });
       }
-      
       // Update in appointments table
       const success = await appointmentsModel.updateAppointment(id, {
         role,
-        name_patient,
+        user_public_id,
         contact: userContact,
         assigned_to,
         status,
         date_time,
-        created_by: name_patient
+        created_by: user_public_id,
+        counselor_id
       });
-      
       if (!success) {
         return res.status(404).json({ success: false, message: 'Counselor appointment not found' });
       }

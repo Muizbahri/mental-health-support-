@@ -1,35 +1,81 @@
 const db = require('../config/db');
 
-exports.createPsychiatristAppointment = async ({ name_patient, contact, assigned_to, psychiatrist_id, status, date_time, created_by }) => {
-  if (!name_patient || !contact || !assigned_to || !psychiatrist_id || !status || !date_time || !created_by) {
+exports.createPsychiatristAppointment = async ({ user_public_id, contact, assigned_to, psychiatrist_id, status, date_time, created_by }) => {
+  if (!user_public_id || !contact || !assigned_to || !psychiatrist_id || !status || !date_time || !created_by) {
     throw new Error('Missing required fields');
   }
+  // Fetch the latest full_name from user_public
+  const [userRows] = await db.query('SELECT full_name FROM user_public WHERE id = ?', [user_public_id]);
+  const name_patient = userRows[0]?.full_name || '';
   const [result] = await db.query(
-    'INSERT INTO psychiatrist_appointments (name_patient, contact, assigned_to, psychiatrist_id, status, date_time, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())',
-    [name_patient, contact, assigned_to, psychiatrist_id, status, date_time, created_by]
+    'INSERT INTO psychiatrist_appointments (name_patient, user_public_id, contact, assigned_to, psychiatrist_id, status, date_time, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+    [name_patient, user_public_id, contact, assigned_to, psychiatrist_id, status, date_time, created_by]
   );
   return result.insertId;
 };
 
 exports.getAllPsychiatristAppointments = async () => {
-  const [rows] = await db.query('SELECT id, name_patient, contact, assigned_to, psychiatrist_id, status, DATE_FORMAT(date_time, \'%Y-%m-%d %H:%i:%s\') as date_time, created_by, created_at FROM psychiatrist_appointments ORDER BY date_time DESC');
+  const sql = `SELECT pa.id, pa.user_public_id, pa.contact, pa.assigned_to, pa.psychiatrist_id, pa.status, 
+               DATE_FORMAT(pa.date_time, '%Y-%m-%d %H:%i:%s') as date_time, pa.created_by, pa.created_at,
+               u.full_name as name_patient, u.email as patient_email, u.phone_number as patient_phone
+               FROM psychiatrist_appointments pa
+               LEFT JOIN user_public u ON pa.user_public_id = u.id
+               ORDER BY pa.date_time DESC`;
+  const [rows] = await db.query(sql);
   return rows;
 };
 
 exports.getPsychiatristAppointmentsByPsychiatristId = async (psychiatrist_id) => {
-  const [rows] = await db.query('SELECT id, name_patient, contact, assigned_to, psychiatrist_id, status, DATE_FORMAT(date_time, \'%Y-%m-%d %H:%i:%s\') as date_time, created_by, created_at FROM psychiatrist_appointments WHERE psychiatrist_id = ? ORDER BY date_time DESC', [psychiatrist_id]);
+  const sql = `SELECT pa.id, pa.user_public_id, pa.contact, pa.assigned_to, pa.psychiatrist_id, pa.status, 
+               DATE_FORMAT(pa.date_time, '%Y-%m-%d %H:%i:%s') as date_time, pa.created_by, pa.created_at,
+               u.full_name as name_patient, u.email as patient_email, u.phone_number as patient_phone
+               FROM psychiatrist_appointments pa
+               LEFT JOIN user_public u ON pa.user_public_id = u.id
+               WHERE pa.psychiatrist_id = ? ORDER BY pa.date_time DESC`;
+  const [rows] = await db.query(sql, [psychiatrist_id]);
+  return rows;
+};
+
+exports.getPsychiatristAppointmentsByUserId = async (user_public_id) => {
+  const sql = `SELECT pa.id, pa.user_public_id, pa.contact, pa.assigned_to, pa.psychiatrist_id, pa.status, 
+               DATE_FORMAT(pa.date_time, '%Y-%m-%d %H:%i:%s') as date_time, pa.created_by, pa.created_at,
+               u.full_name as name_patient, u.email as patient_email, u.phone_number as patient_phone
+               FROM psychiatrist_appointments pa
+               LEFT JOIN user_public u ON pa.user_public_id = u.id
+               WHERE pa.user_public_id = ? ORDER BY pa.date_time DESC`;
+  const [rows] = await db.query(sql, [user_public_id]);
   return rows;
 };
 
 exports.getAppointmentsForPsychiatrist = async (psychiatrist_id) => {
-  const [rows] = await db.query('SELECT id, name_patient, contact, assigned_to, psychiatrist_id, status, DATE_FORMAT(date_time, \'%Y-%m-%d %H:%i:%s\') as date_time, created_by, created_at FROM psychiatrist_appointments WHERE psychiatrist_id = ?', [psychiatrist_id]);
+  const sql = `SELECT pa.id, pa.user_public_id, pa.contact, pa.assigned_to, pa.psychiatrist_id, pa.status, 
+               DATE_FORMAT(pa.date_time, '%Y-%m-%d %H:%i:%s') as date_time, pa.created_by, pa.created_at,
+               u.full_name as name_patient, u.email as patient_email, u.phone_number as patient_phone
+               FROM psychiatrist_appointments pa
+               LEFT JOIN user_public u ON pa.user_public_id = u.id
+               WHERE pa.psychiatrist_id = ?`;
+  const [rows] = await db.query(sql, [psychiatrist_id]);
   return rows;
 };
 
-exports.updatePsychiatristAppointment = async (id, { name_patient, contact, assigned_to, psychiatrist_id, status, date_time }) => {
+exports.updatePsychiatristAppointment = async (id, { name_patient, user_public_id, contact, assigned_to, psychiatrist_id, status, date_time }) => {
+  // If name_patient or user_public_id is not provided, fetch the current value
+  let finalNamePatient = name_patient;
+  let finalUserPublicId = user_public_id;
+  if (!finalNamePatient || finalNamePatient.trim() === "" || !finalUserPublicId) {
+    const [rows] = await db.query('SELECT name_patient, user_public_id FROM psychiatrist_appointments WHERE id = ?', [id]);
+    if (rows.length > 0) {
+      if (!finalNamePatient || finalNamePatient.trim() === "") {
+        finalNamePatient = rows[0].name_patient;
+      }
+      if (!finalUserPublicId) {
+        finalUserPublicId = rows[0].user_public_id;
+      }
+    }
+  }
   const [result] = await db.query(
-    'UPDATE psychiatrist_appointments SET name_patient=?, contact=?, assigned_to=?, psychiatrist_id=?, status=?, date_time=? WHERE id=?',
-    [name_patient, contact, assigned_to, psychiatrist_id, status, date_time, id]
+    'UPDATE psychiatrist_appointments SET name_patient=?, user_public_id=?, contact=?, assigned_to=?, psychiatrist_id=?, status=?, date_time=? WHERE id=?',
+    [finalNamePatient, finalUserPublicId, contact, assigned_to, psychiatrist_id, status, date_time, id]
   );
   return result.affectedRows > 0;
 };

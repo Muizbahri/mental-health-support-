@@ -267,27 +267,23 @@ export default function PsychiatristAppointmentsPage() {
   function openEditModal(appt) {
     setModalMode("edit");
     setCurrent(appt);
-    
-    // Better date/time parsing
+    // Parse date/time
     let dateValue = "";
     let timeValue = "";
-    
     if (appt.date_time) {
       const appointmentDate = new Date(appt.date_time);
       if (!isNaN(appointmentDate.getTime())) {
-        // Format date as YYYY-MM-DD for date input
         dateValue = appointmentDate.toISOString().split('T')[0];
-        // Format time as HH:MM for time input
         timeValue = appointmentDate.toTimeString().split(' ')[0].substring(0, 5);
       }
     }
-    
     setForm({
       date: dateValue,
       time: timeValue,
       client_name: appt.name_patient || "",
       contact: appt.contact || "",
-      status: appt.status || "Accepted"
+      status: appt.status || "Accepted",
+      user_public_id: appt.user_public_id || ""
     });
     setShowModal(true);
   }
@@ -300,25 +296,22 @@ export default function PsychiatristAppointmentsPage() {
 
   function handleFormChange(e) {
     const { name, value } = e.target;
-    
-    // Validate date to prevent past dates
-    if (name === "date" && value) {
-      const selectedDate = new Date(value);
-      const todayDate = new Date();
-      todayDate.setHours(0, 0, 0, 0); // Reset time to start of day for comparison
-      
-      if (selectedDate < todayDate) {
-        alert("Cannot select a past date. Please choose today's date or a future date.");
-        return; // Don't update the form with past date
-      }
+    // Prevent blank client_name
+    if (name === "client_name" && value.trim() === "") {
+      return; // Do not allow blank
     }
-    
     setForm(f => ({ ...f, [name]: value }));
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true);
+    // Validation: Prevent blank client_name
+    if (!form.client_name || form.client_name.trim() === "") {
+      alert("Client name cannot be blank.");
+      setSaving(false);
+      return;
+    }
     
     // Additional validation: Check if selected date is not in the past
     if (form.date) {
@@ -350,6 +343,11 @@ export default function PsychiatristAppointmentsPage() {
     // Create proper datetime string
     const dateTimeString = `${form.date} ${form.time}:00`;
     
+    // Always use the original user_public_id unless intentionally changed
+    let userPublicId = form.user_public_id;
+    if (!userPublicId && current) {
+      userPublicId = current.user_public_id;
+    }
     const payload = {
       name_patient: form.client_name,
       contact: form.contact,
@@ -357,7 +355,8 @@ export default function PsychiatristAppointmentsPage() {
       status: form.status,
       date_time: dateTimeString,
       psychiatrist_id: psychiatristId,
-      created_by: user.email
+      created_by: user.email,
+      user_public_id: userPublicId
     };
     
     console.log('Submitting appointment:', payload);
