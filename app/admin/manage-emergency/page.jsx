@@ -366,13 +366,6 @@ export default function ManageEmergencyPage() {
       });
   }, []);
 
-  // Auto-refresh emergency cases data every 12 seconds
-  const { refresh: refreshCases } = useAutoRefresh(
-    fetchCases,
-    12000, // 12 seconds
-    true // Always refresh
-  );
-
   const fetchCases = async () => {
     setFetching(true);
     setFetchError("");
@@ -393,6 +386,13 @@ export default function ManageEmergencyPage() {
     }
     setFetching(false);
   };
+
+  // Auto-refresh emergency cases data every 12 seconds
+  const { refresh: refreshCases } = useAutoRefresh(
+    fetchCases,
+    12000, // 12 seconds
+    true // Always refresh
+  );
 
   useEffect(() => {
     fetchCases();
