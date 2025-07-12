@@ -15,6 +15,15 @@ router.put('/:id', appointmentsController.updatePublicAppointment);
 // Public route for deleting appointments (no authentication required)
 router.delete('/:id', appointmentsController.deletePublicAppointment);
 
+// Admin routes (no authentication required for admin operations)
+router.post('/admin', appointmentsController.createAdminAppointment);
+router.get('/admin', appointmentsController.getAdminAppointments);
+router.put('/admin/:id', appointmentsController.updateAdminAppointment);
+router.delete('/admin/:id', appointmentsController.deleteAdminAppointment);
+
+// Get all psychiatrist appointments (admin access)
+router.get('/psychiatrist', appointmentsController.getPsychiatristAppointments);
+
 // Apply authentication to protected routes below
 router.use(authenticateToken);
 
@@ -24,9 +33,6 @@ router.get('/protected', appointmentsController.getAppointments);
 router.get('/assignee/:assigned_to', appointmentsController.getAppointmentsByAssignee);
 router.put('/protected/:id', appointmentsController.updateAppointment);
 router.delete('/protected/:id', appointmentsController.deleteAppointment);
-
-// Get all psychiatrist appointments
-router.get('/psychiatrist', appointmentsController.getPsychiatristAppointments);
 
 // Get psychiatrist appointments for logged-in psychiatrist
 router.get('/psychiatrist/user', appointmentsController.getPsychiatristAppointmentsForUser);

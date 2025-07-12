@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Calendar, MapPin, Music, User, PlayCircle, FileText, Menu, X } from "lucide-react";
+import { Calendar, MapPin, Music, User, PlayCircle, FileText, Menu, X, RefreshCw } from "lucide-react";
 import Sidebar from "../Sidebar";
 import dynamic from "next/dynamic";
 import { createPortal } from "react-dom";
 import NotificationDrawer from '../../../components/NotificationDrawer';
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 const MapComponent = dynamic(() => import("../self-assessment/find-location/components/MapComponent"), { ssr: false });
 
 const moodOptions = [
@@ -501,30 +502,53 @@ export default function PublicDashboard() {
   const [selectedProfessional, setSelectedProfessional] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showEncouragement, setShowEncouragement] = useState(false);
+  // Add user state
+  const [user, setUser] = useState({ full_name: '', email: '', profile_image: '' });
+  const [userLoading, setUserLoading] = useState(true);
+  const [userError, setUserError] = useState('');
 
-  // Close preview modal when encouragement modal is shown
-  useEffect(() => {
-    if (showEncouragement && preview) {
-      setPreview(null);
-    }
-  }, [showEncouragement]);
+  // Centralized data fetching function
+  const fetchDashboardData = async () => {
+    const fetchUser = async () => {
+      setUserLoading(true);
+      setUserError('');
+      try {
+        const token = localStorage.getItem('publicToken');
+        if (!token) {
+          setUserError('No token found. Please log in again.');
+          setUserLoading(false);
+          return;
+        }
+        const res = await fetch('/api/public-users/profile/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+          setUserError('Failed to fetch user info.');
+          setUserLoading(false);
+          return;
+        }
+        const data = await res.json();
+        if (data.success && data.data) {
+          setUser({
+            full_name: data.data.full_name,
+            email: data.data.email,
+            profile_image: data.data.profile_image || ''
+          });
+        } else {
+          setUserError('Failed to load user info.');
+        }
+      } catch (err) {
+        setUserError('Error fetching user info.');
+      } finally {
+        setUserLoading(false);
+      }
+    };
 
-  // Close encouragement modal when preview modal is shown
-  useEffect(() => {
-    if (preview && showEncouragement) {
-      setShowEncouragement(false);
-    }
-  }, [preview]);
-
-  // Portal root for sidebar/overlay
-  const portalRoot = typeof window !== "undefined" ? document.body : null;
-
-  useEffect(() => {
     const fetchProfessionals = async () => {
       try {
         const [counselorsRes, psychiatristsRes] = await Promise.all([
-                  fetch("/api/counselors"),
-        fetch("/api/psychiatrists"),
+          fetch("/api/counselors"),
+          fetch("/api/psychiatrists"),
         ]);
 
         const counselorsResult = await counselorsRes.json();
@@ -539,8 +563,6 @@ export default function PublicDashboard() {
           : [];
 
         const combined = [...counselorsData, ...psychiatristsData];
-        
-        console.log('Raw combined data:', combined);
         
         // Filter for all registered professionals (for lists)
         const registeredProfessionals = combined.filter(p => 
@@ -557,10 +579,6 @@ export default function PublicDashboard() {
           p.longitude
         );
         
-        console.log(`Found ${registeredProfessionals.length} registered professionals, ${mapReadyProfessionals.length} map-ready`);
-        console.log('Registered professionals:', registeredProfessionals);
-        console.log('Map-ready professionals:', mapReadyProfessionals);
-        
         setProfessionals(registeredProfessionals);
         setMapProfessionals(mapReadyProfessionals);
       } catch (error) {
@@ -569,7 +587,6 @@ export default function PublicDashboard() {
         setMapProfessionals([]);
       }
     };
-    fetchProfessionals();
 
     const fetchAppointments = async () => {
       const userPublicId = localStorage.getItem("user_public_id");
@@ -585,9 +602,7 @@ export default function PublicDashboard() {
         }
       }
     };
-    fetchAppointments();
 
-    // Fetch and shuffle materials for recommendations
     const fetchMaterials = async () => {
       try {
         const res = await fetch("/api/materials");
@@ -610,8 +625,45 @@ export default function PublicDashboard() {
         setRecommendations({ music: null, article: null, video: null });
       }
     };
-    fetchMaterials();
+
+    // Execute all data fetching
+    await Promise.all([
+      fetchUser(),
+      fetchProfessionals(),
+      fetchAppointments(),
+      fetchMaterials()
+    ]);
+  };
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchDashboardData();
   }, []);
+
+  // Auto-refresh dashboard data every 15 seconds
+  const { refresh: refreshDashboard } = useAutoRefresh(
+    fetchDashboardData,
+    15000, // 15 seconds
+    true,
+    []
+  );
+
+  // Close preview modal when encouragement modal is shown
+  useEffect(() => {
+    if (showEncouragement && preview) {
+      setPreview(null);
+    }
+  }, [showEncouragement]);
+
+  // Close encouragement modal when preview modal is shown
+  useEffect(() => {
+    if (preview && showEncouragement) {
+      setShowEncouragement(false);
+    }
+  }, [preview]);
+
+  // Portal root for sidebar/overlay
+  const portalRoot = typeof window !== "undefined" ? document.body : null;
 
   // Default to first professional if none selected
   const selectedLatLon = selectedProfessional
@@ -664,13 +716,33 @@ export default function PublicDashboard() {
         {/* Top Section */}
         <div className="flex flex-col sm:flex-row items-center mb-8 gap-4 sm:gap-0 justify-between">
           <div className="flex items-center gap-4">
-            <img src="/admin-mental.png" width={48} height={48} alt="User Avatar" className="rounded-full mr-0 sm:mr-4" />
+            <img
+              src={user.profile_image ? `/uploads/${user.profile_image}` : "/admin-mental.png"}
+              width={48}
+              height={48}
+              alt="User profile"
+              className="rounded-full mr-0 sm:mr-4 object-cover border border-gray-300"
+              style={{ minWidth: 48, minHeight: 48, maxWidth: 48, maxHeight: 48 }}
+              onError={e => { e.target.src = '/admin-mental.png'; }}
+            />
             <div className="text-center sm:text-left">
-              <div className="text-xl md:text-2xl font-semibold text-gray-800">Welcome!</div>
-              <div className="text-gray-500 text-sm">User Dashboard</div>
+              {userLoading ? (
+                <div className="text-xl md:text-2xl font-semibold text-gray-800">Loading...</div>
+              ) : userError ? (
+                <div className="text-xl md:text-2xl font-semibold text-red-600">{userError}</div>
+              ) : (
+                <>
+                  <div className="text-xl md:text-2xl font-semibold text-gray-800">Welcome, {user.full_name || 'User'}!</div>
+                  <div className="text-gray-500 text-sm">{user.email}</div>
+                </>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <RefreshCw size={14} className="animate-spin" />
+              <span>Auto-refresh: ON</span>
+            </div>
             <NotificationDrawer />
           </div>
         </div>

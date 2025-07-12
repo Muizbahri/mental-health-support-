@@ -6,12 +6,12 @@ import { useState } from "react";
 
 const menu = [
   { key: "DASHBOARD", label: "Dashboard", icon: <UserCircle size={20} />, href: "/psychiatryst/dashboard" },
-  { key: "PROFILE", label: "Profile", icon: <User size={20} />, href: "/psychiatryst/profile" },
   { key: "APPOINTMENTS", label: "Appointments", icon: <ClipboardList size={20} />, href: "/psychiatryst/appointments" },
   { key: "EMERGENCY", label: "Emergency Cases", icon: <AlertTriangle size={20} />, href: "/psychiatryst/emergency-cases" },
   { key: "REFERRALS", label: "Referral Requests", icon: <FileText size={20} />, href: "/psychiatryst/referral-requests" },
   { key: "MATERIALS", label: "Materials Shared", icon: <BookOpen size={20} />, href: "/psychiatryst/materials" },
   { key: "FEEDBACK", label: "Feedback", icon: <MessageCircle size={20} />, href: "/psychiatryst/feedback" },
+  { key: "PROFILE", label: "Profile", icon: <User size={20} />, href: "/psychiatryst/profile" },
 ];
 
 export default function PsychiatristSidebar({ activePage }) {

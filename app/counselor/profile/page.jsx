@@ -221,7 +221,7 @@ export default function CounselorProfilePage() {
           <div className="space-y-4">
             <Field icon={<User size={18} />} label="Full Name" name="full_name" value={form.full_name || ""} onChange={handleChange} readOnly={!editMode} />
             <Field icon={<Mail size={18} />} label="Email Address" name="email" value={form.email || ""} onChange={handleChange} readOnly={!editMode} />
-            <Field icon={<IdCard size={18} />} label="IC Number" name="ic_number" value={form.ic_number || ""} onChange={handleChange} readOnly />
+            <Field icon={<IdCard size={18} />} label="IC Number" name="ic_number" value={form.ic_number || ""} onChange={handleChange} readOnly={!editMode} />
             <Field icon={<Calendar size={18} />} label="Age" name="age" value={form.age || ""} onChange={handleChange} readOnly />
             <Field icon={<Phone size={18} />} label="Phone Number" name="phone_number" value={form.phone_number || ""} onChange={handleChange} readOnly={!editMode} />
             <Field icon={<Hash size={18} />} label="Registration Number" name="registration_number" value={form.registration_number || ""} onChange={handleChange} readOnly={!editMode} />

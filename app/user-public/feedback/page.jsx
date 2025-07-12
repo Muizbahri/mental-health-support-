@@ -1,7 +1,8 @@
 "use client";
-import { MessageCircle, Menu, X } from "lucide-react";
+import { MessageCircle, Menu, X, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import Sidebar from "../Sidebar";
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 const feedbackTypes = [
   "General Feedback",
@@ -10,48 +11,113 @@ const feedbackTypes = [
   "Urgent Issue",
 ];
 
-const recentFeedback = [
-  {
-    type: "Feature Request",
-    message: "It would be great to have a mobile app for easier access to appointments and materials.",
-    status: "Under Review",
-    statusColor: "bg-yellow-100 text-yellow-800",
-    date: "June 12, 2024",
-    typeColor: "text-blue-700",
-  },
-  {
-    type: "General Feedback",
-    message: "The meditation videos have been incredibly helpful for my daily routine. Thank you!",
-    status: "Acknowledged",
-    statusColor: "bg-green-100 text-green-700",
-    date: "June 8, 2024",
-    typeColor: "text-green-700",
-  },
-];
+// Status color mapping
+const getStatusColor = (status) => {
+  switch (status?.toLowerCase()) {
+    case 'acknowledged':
+      return 'bg-green-100 text-green-700';
+    case 'under review':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'in progress':
+      return 'bg-blue-100 text-blue-800';
+    case 'resolved':
+      return 'bg-purple-100 text-purple-800';
+    default:
+      return 'bg-gray-100 text-gray-700';
+  }
+};
+
+// Type color mapping
+const getTypeColor = (type) => {
+  switch (type?.toLowerCase()) {
+    case 'feature request':
+      return 'text-blue-700';
+    case 'general feedback':
+      return 'text-green-700';
+    case 'bug report':
+      return 'text-red-700';
+    case 'urgent issue':
+      return 'text-orange-700';
+    default:
+      return 'text-gray-700';
+  }
+};
 
 export default function FeedbackPage() {
   const [type, setType] = useState("");
   const [message, setMessage] = useState("");
-  const [user, setUser] = useState({ full_name: '', user_role: '' });
+  const [user, setUser] = useState({ id: null, full_name: '', user_role: 'public' });
+  const [userFeedbacks, setUserFeedbacks] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const charLimit = 1000;
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  // Auto-refresh feedback data every 15 seconds
+  const { refresh: refreshFeedbacks } = useAutoRefresh(
+    () => {
+      if (user.id) {
+        fetchUserFeedbacks(user.id);
+      }
+    },
+    15000, // 15 seconds
+    isAuthenticated && user.id !== null // Only refresh when authenticated and user ID is available
+  );
+
+  // Get user information and fetch their feedback
   useEffect(() => {
+    const token = localStorage.getItem("publicToken");
+    if (token) {
+      setIsAuthenticated(true);
+    }
+
     // Get user information from localStorage first (most reliable)
     const publicUserData = localStorage.getItem("publicUser");
+    const userIdFromStorage = localStorage.getItem("user_public_id");
     const fullNameFromStorage = localStorage.getItem("full_name");
+    
+    let userInfo = null;
     
     if (publicUserData) {
       try {
         const userData = JSON.parse(publicUserData);
-        setUser({
+        userInfo = {
+          id: userData.id || userIdFromStorage,
           full_name: userData.full_name || fullNameFromStorage || '',
           user_role: 'public'
-        });
-        console.log('Public user loaded from localStorage:', userData.full_name);
+        };
       } catch (err) {
         console.error("Error parsing publicUser data:", err);
       }
+    }
+    
+    // Fallback to individual localStorage items
+    if (!userInfo && (userIdFromStorage || fullNameFromStorage)) {
+      userInfo = {
+        id: userIdFromStorage,
+        full_name: fullNameFromStorage || '',
+        user_role: 'public'
+      };
+    }
+    
+    if (userInfo) {
+      setUser(userInfo);
+      console.log('Public user loaded from localStorage:', userInfo);
+      console.log('User ID for feedback fetch:', userInfo.id, typeof userInfo.id);
+      
+      // Fetch user's feedback if we have user ID
+      if (userInfo.id) {
+        fetchUserFeedbacks(userInfo.id);
+      } else {
+        console.log('No user ID found - cannot fetch feedback');
+      }
+    } else {
+      console.log('No user info found in localStorage:', {
+        publicUserData: !!publicUserData,
+        userIdFromStorage,
+        fullNameFromStorage
+      });
     }
     
     // Only fetch from API if we don't have user data in localStorage
@@ -60,20 +126,26 @@ export default function FeedbackPage() {
       if (!token) return;
       
       // Use the correct API endpoint for public user profile
-              fetch(`/api/public-users/profile/me`, {
+      fetch(`/api/public-users/profile/me`, {
         headers: { Authorization: `Bearer ${token}` }
       })
         .then(res => res.json())
         .then(data => {
           console.log('Profile API response:', data);
           if (data.success && data.data) {
-            setUser({
+            const userInfo = {
+              id: data.data.id,
               full_name: data.data.full_name,
               user_role: 'public'
-            });
+            };
+            setUser(userInfo);
             // Update localStorage with fresh data
             localStorage.setItem("full_name", data.data.full_name);
+            localStorage.setItem("user_public_id", data.data.id.toString());
             localStorage.setItem("publicUser", JSON.stringify(data.data));
+            
+            // Fetch user's feedback
+            fetchUserFeedbacks(userInfo.id);
           }
         })
         .catch(err => {
@@ -82,6 +154,77 @@ export default function FeedbackPage() {
     }
   }, []);
 
+  // Fetch user's feedback from the backend using user_id
+  const fetchUserFeedbacks = async (userId) => {
+    if (!userId) {
+      console.log('fetchUserFeedbacks called with no userId');
+      return;
+    }
+    
+    console.log('Fetching feedback for user_id:', userId);
+    
+    try {
+      setLoading(true);
+      const apiUrl = `/api/feedbacks/my-feedbacks?user_id=${userId}`;
+      console.log('Making API call to:', apiUrl);
+      
+      const res = await fetch(apiUrl);
+      const data = await res.json();
+      
+      console.log('API response:', { status: res.status, data });
+      
+      if (data.success) {
+        console.log('Setting user feedbacks:', data.data);
+        setUserFeedbacks(data.data || []);
+      } else {
+        console.error('Failed to fetch feedback:', data.message);
+      }
+    } catch (error) {
+      console.error('Error fetching feedback:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete feedback function using user_id
+  const deleteFeedback = async (feedbackId) => {
+    if (!user.id) {
+      alert("User information not available. Please refresh the page.");
+      return;
+    }
+
+    // Confirmation dialog
+    if (!window.confirm("Are you sure you want to delete this feedback? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      setDeletingId(feedbackId);
+      const res = await fetch(`/api/feedbacks/user/${feedbackId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.id
+        })
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        // Remove the deleted feedback from the local state
+        setUserFeedbacks(prev => prev.filter(fb => fb.id !== feedbackId));
+        alert("Feedback deleted successfully!");
+      } else {
+        alert(data.message || "Failed to delete feedback");
+      }
+    } catch (error) {
+      console.error('Error deleting feedback:', error);
+      alert("Error deleting feedback. Please try again.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!type || !message) {
@@ -89,45 +232,27 @@ export default function FeedbackPage() {
       return;
     }
 
-    // Try multiple sources to get the correct user name
-    const fullNameFromStorage = localStorage.getItem("full_name");
-    const userDataFromStorage = localStorage.getItem("publicUser");
-    let actualUserName = fullNameFromStorage;
-    
-    // Fallback to user data if direct storage fails
-    if (!actualUserName && userDataFromStorage) {
-      try {
-        const userData = JSON.parse(userDataFromStorage);
-        actualUserName = userData.full_name;
-      } catch (err) {
-        console.error("Error parsing user data:", err);
-      }
-    }
-    
-    // Fallback to the state user if both fail
-    if (!actualUserName && user.full_name) {
-      actualUserName = user.full_name;
-    }
-
-    console.log('Public user feedback submission:', {
-      fullNameFromStorage,
-      actualUserName,
-      userFromState: user.full_name,
-      userRole: 'public'
-    });
-
-    if (!actualUserName) {
-      alert("Could not find user information. Please log in again.");
+    if (!user.id || !user.full_name) {
+      alert("User information not available. Please log in again.");
       return;
     }
 
+    console.log('Public user feedback submission:', {
+      user_id: user.id,
+      full_name: user.full_name,
+      user_role: user.user_role,
+      type_of_feedback: type,
+      feedback: message.substring(0, 50) + '...'
+    });
+
     try {
-      const res = await fetch("/api/feedbacks", {
+      const res = await fetch("/api/feedbacks/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          full_name: actualUserName.trim(),
-          user_role: 'public',
+          user_id: user.id,
+          full_name: user.full_name,
+          user_role: user.user_role,
           type_of_feedback: type,
           feedback: message,
         }),
@@ -137,6 +262,8 @@ export default function FeedbackPage() {
         alert("Feedback submitted successfully!");
         setType("");
         setMessage("");
+        // Refresh the feedback list
+        fetchUserFeedbacks(user.id);
       } else {
         throw new Error(data.message || "Failed to submit feedback.");
       }
@@ -179,7 +306,13 @@ export default function FeedbackPage() {
       </div>
       {/* Main Content */}
       <main className="flex-1 p-4 sm:p-6 md:p-10 transition-all duration-200">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Feedback</h1>
+        <div className="flex items-center gap-4 mb-2">
+          <h1 className="text-3xl font-bold text-gray-900">Feedback</h1>
+          <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Auto-refresh: ON</span>
+          </div>
+        </div>
         <p className="text-gray-600 mb-8 text-lg">Your feedback helps us improve our mental health services. Please share your thoughts, suggestions, or report any issues.</p>
         {/* Submit Feedback */}
         <section className="bg-white rounded-2xl shadow p-6 mb-8">
@@ -247,18 +380,44 @@ export default function FeedbackPage() {
         {/* Recent Feedback */}
         <section className="bg-white rounded-2xl shadow p-6">
           <div className="font-semibold text-gray-800 text-lg mb-4">Your Recent Feedback</div>
-          <div className="flex flex-col gap-4">
-            {recentFeedback.map((fb, i) => (
-              <div key={fb.type + fb.date + i} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between">
-                <div className="flex-1">
-                  <div className={`font-semibold mb-1 ${fb.typeColor}`}>{fb.type}</div>
-                  <div className="text-gray-700 text-sm mb-2">"{fb.message}"</div>
-                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${fb.statusColor}`}>{fb.status}</span>
+          {loading ? (
+            <div className="text-center py-8 text-gray-500">Loading your feedback...</div>
+          ) : userFeedbacks.length > 0 ? (
+            <div className="flex flex-col gap-4">
+              {userFeedbacks.map((fb) => (
+                <div key={fb.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between">
+                  <div className="flex-1">
+                    <div className={`font-semibold mb-1 ${getTypeColor(fb.type_of_feedback)}`}>{fb.type_of_feedback}</div>
+                    <div className="text-gray-700 text-sm mb-2">"{fb.feedback}"</div>
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor('Under Review')}`}>
+                      Under Review
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-3 md:mt-0 md:ml-4">
+                    <span className="text-gray-400 text-xs whitespace-nowrap">
+                      {new Date(fb.feedback_date).toLocaleDateString()}
+                    </span>
+                    <button
+                      onClick={() => deleteFeedback(fb.id)}
+                      disabled={deletingId === fb.id}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                      title="Delete feedback"
+                    >
+                      {deletingId === fb.id ? (
+                        <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <Trash2 size={16} />
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <div className="text-gray-400 text-xs mt-2 md:mt-0 md:ml-4 whitespace-nowrap">{fb.date}</div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No feedback submitted yet. Share your thoughts to help us improve!
+            </div>
+          )}
         </section>
       </main>
     </div>

@@ -4,6 +4,7 @@ import { Home, Users, BookOpen, MessageCircle, AlertTriangle, LogOut, Search, Fi
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import AdminSidebar from '../Sidebar';
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 const sidebarMenu = [
   { icon: <Home size={20} />, label: "Dashboard", path: "/admin/dashboard" },
@@ -16,7 +17,7 @@ const sidebarMenu = [
 
 const STATUS = [
   { label: "In Progress", value: "in_progress", color: "text-yellow-600", bg: "bg-yellow-50" },
-  { label: "Resolved", value: "resolved", color: "text-blue-600", bg: "bg-blue-50" },
+  { label: "Rejected", value: "rejected", color: "text-blue-600", bg: "bg-blue-50" },
   { label: "Solved", value: "solved", color: "text-green-600", bg: "bg-green-50" },
 ];
 
@@ -110,7 +111,7 @@ function NewCaseModal({ isOpen, onClose, onAdd, loading }) {
             <label className="block text-sm font-medium text-gray-900 mb-2">Status</label>
             <select value={formData.status ?? ""} onChange={e => setFormData({ ...formData, status: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500">
               <option value="In Progress">In Progress</option>
-              <option value="Resolved">Resolved</option>
+              <option value="Rejected">Rejected</option>
               <option value="Solved">Solved</option>
             </select>
           </div>
@@ -277,7 +278,7 @@ function EditCaseModal({ isOpen, onClose, onEdit, loading, initialData }) {
             <label className="block text-sm font-medium text-gray-900 mb-2">Status</label>
             <select value={formData.status ?? ""} onChange={e => setFormData({ ...formData, status: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500">
               <option value="In Progress">In Progress</option>
-              <option value="Resolved">Resolved</option>
+              <option value="Rejected">Rejected</option>
               <option value="Solved">Solved</option>
             </select>
           </div>
@@ -344,12 +345,13 @@ export default function ManageEmergencyPage() {
   const [counselors, setCounselors] = useState([]);
   const [psychiatrists, setPsychiatrists] = useState([]);
 
-  useEffect(() => {
-    const token = localStorage.getItem('adminToken');
-    if (!token) {
-      router.push('/admin/login');
-    }
-  }, [router]);
+  // No authentication required for admin emergency cases
+  // useEffect(() => {
+  //   const token = localStorage.getItem('adminToken');
+  //   if (!token) {
+  //     router.push('/admin/login');
+  //   }
+  // }, [router]);
 
   useEffect(() => {
             fetch("/api/counselors")
@@ -364,14 +366,18 @@ export default function ManageEmergencyPage() {
       });
   }, []);
 
+  // Auto-refresh emergency cases data every 12 seconds
+  const { refresh: refreshCases } = useAutoRefresh(
+    fetchCases,
+    12000, // 12 seconds
+    true // Always refresh
+  );
+
   const fetchCases = async () => {
     setFetching(true);
     setFetchError("");
     try {
-      const token = localStorage.getItem('adminToken');
-      const res = await fetch("/api/emergency-cases", {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await fetch("/api/emergency-cases");
       const data = await res.json();
       console.log("Emergency Cases API response:", data);
       if (data.success && Array.isArray(data.data)) {
@@ -396,6 +402,21 @@ export default function ManageEmergencyPage() {
     setModalLoading(true);
     // Convert datetime-local value to 'YYYY-MM-DD HH:mm:ss' string
     const dateTimeStr = formData.date.replace('T', ' ') + ':00';
+    
+    // Find the assigned professional and get their ID
+    let counselor_id = null;
+    let psychiatrist_id = null;
+    
+    if (formData.role === 'Counselor') {
+      const counselor = counselors.find(c => c.full_name === formData.assigned);
+      counselor_id = counselor ? counselor.id : null;
+      console.log('Assigning to counselor:', { name: formData.assigned, id: counselor_id });
+    } else if (formData.role === 'Psychiatrist') {
+      const psychiatrist = psychiatrists.find(p => p.full_name === formData.assigned);
+      psychiatrist_id = psychiatrist ? psychiatrist.id : null;
+      console.log('Assigning to psychiatrist:', { name: formData.assigned, id: psychiatrist_id });
+    }
+    
     const sendData = {
       name_patient: formData.name,
       ic_number: formData.ic,
@@ -403,14 +424,14 @@ export default function ManageEmergencyPage() {
       status: formData.status,
       assigned_to: formData.assigned,
       role: formData.role,
+      counselor_id,
+      psychiatrist_id,
     };
     try {
-      const token = localStorage.getItem('adminToken');
       const res = await fetch('/api/emergency-cases/admin', {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(sendData),
       });
@@ -430,10 +451,8 @@ export default function ManageEmergencyPage() {
   const handleDeleteCase = async (id) => {
     if (!window.confirm('Are you sure you want to delete this emergency case?')) return;
     try {
-      const token = localStorage.getItem('adminToken');
       const res = await fetch(`/api/emergency-cases/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        method: 'DELETE'
       });
       const data = await res.json();
       if (data.success) {
@@ -455,6 +474,21 @@ export default function ManageEmergencyPage() {
     setEditModalLoading(true);
     // Convert datetime-local value to 'YYYY-MM-DD HH:mm:ss' string
     const dateTimeStr = formData.date.replace('T', ' ') + ':00';
+    
+    // Find the assigned professional and get their ID
+    let counselor_id = null;
+    let psychiatrist_id = null;
+    
+    if (formData.role === 'Counselor') {
+      const counselor = counselors.find(c => c.full_name === formData.assigned);
+      counselor_id = counselor ? counselor.id : null;
+      console.log('Updating assignment to counselor:', { name: formData.assigned, id: counselor_id });
+    } else if (formData.role === 'Psychiatrist') {
+      const psychiatrist = psychiatrists.find(p => p.full_name === formData.assigned);
+      psychiatrist_id = psychiatrist ? psychiatrist.id : null;
+      console.log('Updating assignment to psychiatrist:', { name: formData.assigned, id: psychiatrist_id });
+    }
+    
     const sendData = {
       name_patient: formData.name,
       ic_number: formData.ic,
@@ -462,14 +496,14 @@ export default function ManageEmergencyPage() {
       status: formData.status,
       assigned_to: formData.assigned,
       role: formData.role,
+      counselor_id,
+      psychiatrist_id,
     };
     try {
-      const token = localStorage.getItem('adminToken');
       const res = await fetch(`/api/emergency-cases/${editCaseData.id}`, {
         method: 'PUT',
         headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(sendData),
       });
@@ -511,7 +545,21 @@ export default function ManageEmergencyPage() {
     <div className="min-h-screen w-full bg-white flex">
       <AdminSidebar />
       <main className="flex-1 w-full p-4 sm:p-8 space-y-8">
-        <h1 className="font-bold text-3xl mb-6 text-gray-900">Manage Emergency Cases</h1>
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-4">
+            <h1 className="font-bold text-3xl text-gray-900">Manage Emergency Cases</h1>
+            <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span>Auto-refresh: ON</span>
+            </div>
+          </div>
+          <button 
+            className="border border-neutral-300 px-5 py-2 rounded-lg hover:bg-neutral-100 transition flex items-center gap-2 text-gray-900 font-medium" 
+            onClick={() => setIsModalOpen(true)}
+          >
+            <Plus size={18} /> Add New Case
+          </button>
+        </div>
         {/* Status Summary */}
         <div className="flex gap-6 mb-6">
           {STATUS.map(s => (
@@ -552,9 +600,6 @@ export default function ManageEmergencyPage() {
           <button className="ml-auto flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition" onClick={() => setIsModalOpen(true)}>
             <Plus size={18} /> New Case
           </button>
-          <button className="flex items-center gap-2 px-5 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 transition text-gray-700 font-medium">
-            <FileText size={18} /> Import CSV
-          </button>
         </div>
         {/* Table */}
         <div className="bg-white rounded-xl shadow p-4 overflow-x-auto">
@@ -582,7 +627,7 @@ export default function ManageEmergencyPage() {
                     {row.status ? (
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         row.status === 'In Progress' ? 'bg-yellow-100 text-yellow-700' :
-                        row.status === 'Resolved' ? 'bg-blue-100 text-blue-700' :
+                        row.status === 'Rejected' ? 'bg-blue-100 text-blue-700' :
                         row.status === 'Solved' ? 'bg-green-100 text-green-700' : ''
                       }`}>
                         {row.status}
@@ -594,9 +639,22 @@ export default function ManageEmergencyPage() {
                   <td className="py-2 px-3 text-gray-800">{row.assigned_to || <span className="text-gray-400 italic">Unassigned</span>}</td>
                   <td className="py-2 px-3 text-gray-800">{row.role || <span className="text-gray-400 italic">Unknown</span>}</td>
                   <td className="py-2 px-3 flex gap-2">
-                    <button className="hover:text-blue-600" title="View"><Eye size={18} /></button>
-                    <button className="hover:text-green-600" title="Edit" onClick={() => handleEditCase(row)}><Edit size={18} /></button>
-                    <button className="hover:text-red-500" title="Delete" onClick={() => handleDeleteCase(row.id)}><Trash2 size={18} /></button>
+                    <button 
+                      className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+                      title="Edit" 
+                      onClick={() => handleEditCase(row)}
+                    >
+                      <Edit size={14} />
+                      Edit
+                    </button>
+                    <button 
+                      className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors"
+                      title="Delete" 
+                      onClick={() => handleDeleteCase(row.id)}
+                    >
+                      <Trash2 size={14} />
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))}

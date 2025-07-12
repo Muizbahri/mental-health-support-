@@ -2,14 +2,16 @@
 import PsychiatristSidebar from "../Sidebar";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import toast from 'react-hot-toast';
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 const STATUS_COLORS = {
   Accepted: "bg-teal-100 text-teal-700",
   "In Progress": "bg-yellow-100 text-yellow-700",
-  Resolved: "bg-green-100 text-green-700",
+  Rejected: "bg-red-100 text-red-700",
 };
 
-const STATUS_OPTIONS = ["Accepted", "In Progress", "Resolved"];
+const STATUS_OPTIONS = ["Accepted", "In Progress", "Rejected"];
 
 function AppointmentModal({ open, onClose, onSave, initial, isSaving }) {
   const [date, setDate] = useState(initial?.date || "");
@@ -42,7 +44,7 @@ function AppointmentModal({ open, onClose, onSave, initial, isSaving }) {
       todayDate.setHours(0, 0, 0, 0); // Reset time to start of day for comparison
       
       if (selected < todayDate) {
-        alert("Cannot select a past date. Please choose today's date or a future date.");
+        toast.error("Cannot select a past date. Please choose today's date or a future date.");
         return; // Don't update the state with past date
       }
     }
@@ -53,6 +55,24 @@ function AppointmentModal({ open, onClose, onSave, initial, isSaving }) {
   function handleSubmit(e) {
     e.preventDefault();
     
+    // Form validation with toast notifications
+    if (!date.trim()) {
+      toast.error("Please fill in all required fields before submitting.");
+      return;
+    }
+    if (!time.trim()) {
+      toast.error("Please fill in all required fields before submitting.");
+      return;
+    }
+    if (!client.trim()) {
+      toast.error("Please fill in all required fields before submitting.");
+      return;
+    }
+    if (!contact.trim()) {
+      toast.error("Please fill in all required fields before submitting.");
+      return;
+    }
+    
     // Final validation: Check if selected date is not in the past
     if (date) {
       const selectedDate = new Date(date);
@@ -60,7 +80,7 @@ function AppointmentModal({ open, onClose, onSave, initial, isSaving }) {
       todayDate.setHours(0, 0, 0, 0); // Reset time to start of day for comparison
       
       if (selectedDate < todayDate) {
-        alert("Cannot submit a past date. Please choose today's date or a future date.");
+        toast.error("Cannot submit a past date. Please choose today's date or a future date.");
         return;
       }
     }
@@ -160,6 +180,13 @@ export default function PsychiatristAppointmentsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Auto-refresh appointments data every 12 seconds
+  const { refresh: refreshAppointments } = useAutoRefresh(
+    fetchAppointments,
+    12000, // 12 seconds
+    isAuthenticated // Only refresh when authenticated
+  );
 
   // Authentication check on page load
   useEffect(() => {
@@ -306,9 +333,25 @@ export default function PsychiatristAppointmentsPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true);
-    // Validation: Prevent blank client_name
+    
+    // Enhanced form validation with toast notifications
+    if (!form.date || form.date.trim() === "") {
+      toast.error("Please fill in all required fields before submitting.");
+      setSaving(false);
+      return;
+    }
+    if (!form.time || form.time.trim() === "") {
+      toast.error("Please fill in all required fields before submitting.");
+      setSaving(false);
+      return;
+    }
     if (!form.client_name || form.client_name.trim() === "") {
-      alert("Client name cannot be blank.");
+      toast.error("Please fill in all required fields before submitting.");
+      setSaving(false);
+      return;
+    }
+    if (!form.contact || form.contact.trim() === "") {
+      toast.error("Please fill in all required fields before submitting.");
       setSaving(false);
       return;
     }
@@ -320,7 +363,7 @@ export default function PsychiatristAppointmentsPage() {
       todayDate.setHours(0, 0, 0, 0); // Reset time to start of day for comparison
       
       if (selectedDate < todayDate) {
-        alert("Cannot submit a past date. Please choose today's date or a future date.");
+        toast.error("Cannot submit a past date. Please choose today's date or a future date.");
         setSaving(false);
         return;
       }
@@ -328,14 +371,14 @@ export default function PsychiatristAppointmentsPage() {
     
     const user = userRef.current;
     if (!user) {
-      alert("User information not found. Please login again.");
+      toast.error("User information not found. Please login again.");
       setSaving(false);
       return;
     }
     
     const psychiatristId = user.id;
     if (!psychiatristId) {
-      alert("Psychiatrist ID not found. Please login again.");
+      toast.error("Psychiatrist ID not found. Please login again.");
       setSaving(false);
       return;
     }
@@ -381,12 +424,13 @@ export default function PsychiatristAppointmentsPage() {
       if (res.ok) {
         fetchAppointments();
         closeModal();
+        toast.success(modalMode === "edit" ? "Appointment updated successfully!" : "Appointment created successfully!");
       } else {
-        alert(`Failed to save appointment: ${responseData.message || 'Unknown error'}`);
+        toast.error(`Failed to save appointment: ${responseData.message || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error saving appointment:', error);
-      alert("Failed to save appointment due to network error.");
+      toast.error("Failed to save appointment due to network error.");
     } finally {
       setSaving(false);
     }
@@ -400,7 +444,7 @@ export default function PsychiatristAppointmentsPage() {
     const psychiatristId = user?.id;
     
     if (!psychiatristId) {
-      alert("Psychiatrist ID not found. Please login again.");
+      toast.error("Psychiatrist ID not found. Please login again.");
       setDeletingId(null);
       return;
     }
@@ -415,12 +459,13 @@ export default function PsychiatristAppointmentsPage() {
       
       if (res.ok) {
         setAppointments(appts => appts.filter(a => a.id !== id));
+        toast.success("Appointment deleted successfully!");
       } else {
-        alert(`Failed to delete appointment: ${responseData.message || 'Unknown error'}`);
+        toast.error(`Failed to delete appointment: ${responseData.message || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error deleting appointment:', error);
-      alert("Failed to delete appointment due to network error.");
+      toast.error("Failed to delete appointment due to network error.");
     }
     
     setDeletingId(null);
@@ -460,14 +505,26 @@ export default function PsychiatristAppointmentsPage() {
     }
   }
 
+  // Get today's date string for min attribute
+  const getTodayDateString = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+  };
+
   return (
     <div className="min-h-screen w-full flex bg-white">
         <PsychiatristSidebar activePage="APPOINTMENTS" />
       <main className="flex-1 w-full p-4 sm:p-8">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Appointments</h2>
-          <button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg shadow transition">+ New Appointment</button>
+          <div className="flex items-center gap-4">
+            <h2 className="text-2xl font-bold text-gray-900">Appointments</h2>
+            <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span>Auto-refresh: ON</span>
+            </div>
           </div>
+          <button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg shadow transition">+ New Appointment</button>
+        </div>
         {/* Search and Filter Row */}
         <div className="flex gap-4 mb-4">
             <input
@@ -484,7 +541,7 @@ export default function PsychiatristAppointmentsPage() {
             >
               <option value="All">All</option>
               <option value="In Progress">In Progress</option>
-              <option value="Resolved">Resolved</option>
+              <option value="Rejected">Rejected</option>
             <option value="Accepted">Accepted</option>
             </select>
           </div>
@@ -515,7 +572,7 @@ export default function PsychiatristAppointmentsPage() {
                         <span className={
                           appt.status === "Accepted" ? "bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-medium" :
                           appt.status === "In Progress" ? "bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium" :
-                          appt.status === "Resolved" ? "bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs font-medium" :
+                          appt.status === "Rejected" ? "bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-medium" :
                           "bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs font-medium"
                         }>{appt.status || '-'}</span>
                     </td>
@@ -545,6 +602,7 @@ export default function PsychiatristAppointmentsPage() {
                     value={form.date}
                     onChange={handleFormChange}
                     required
+                    min={getTodayDateString()}
                   />
                 </div>
                 <div>
@@ -590,7 +648,7 @@ export default function PsychiatristAppointmentsPage() {
                   >
                     <option value="Accepted">Accepted</option>
                     <option value="In Progress">In Progress</option>
-                    <option value="Resolved">Resolved</option>
+                    <option value="Rejected">Rejected</option>
                   </select>
                 </div>
                 <div className="flex gap-4 mt-4">

@@ -9,11 +9,41 @@ exports.authenticateToken = (req, res, next) => {
   }
 
   try {
+    // First try to verify as JWT token
     const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key';
-    const verified = jwt.verify(token, jwtSecret);
-    req.user = verified;
-    next();
+    try {
+      const verified = jwt.verify(token, jwtSecret);
+      req.user = verified;
+      return next();
+    } catch (jwtErr) {
+      // If JWT verification fails, check if it's an admin token (base64 encoded)
+      try {
+        const decoded = JSON.parse(Buffer.from(token, 'base64').toString('utf8'));
+        
+        // Check if it's a valid admin token
+        if (decoded.role === 'admin' && decoded.user === 'admin') {
+          // Check if token hasn't expired
+          if (decoded.exp && Date.now() < decoded.exp) {
+            req.user = {
+              id: decoded.id || 1,
+              role: 'admin',
+              user: 'admin'
+            };
+            console.log('Admin token authenticated successfully');
+            return next();
+          } else {
+            return res.status(403).json({ message: 'Admin token expired' });
+          }
+        }
+      } catch (adminTokenErr) {
+        // Not a valid admin token either
+      }
+    }
+    
+    // If both JWT and admin token verification fail
+    return res.status(403).json({ message: 'Invalid token' });
   } catch (err) {
+    console.error('Authentication error:', err);
     res.status(403).json({ message: 'Invalid token' });
   }
 };

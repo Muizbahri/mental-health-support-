@@ -66,8 +66,18 @@ export default function CounselorSignUpPage() {
   }
 
   function handleICChange(e) {
-    const ic = e.target.value;
+    let ic = e.target.value;
+    
+    // Remove any non-numeric characters
+    ic = ic.replace(/\D/g, '');
+    
+    // Limit to 12 digits maximum
+    if (ic.length > 12) {
+      ic = ic.slice(0, 12);
+    }
+    
     let age = "";
+    // Only calculate age if IC has at least 6 digits for date parsing
     if (/^\d{6}/.test(ic)) {
       const now = new Date();
       let year = parseInt(ic.slice(0, 2), 10);
@@ -122,6 +132,13 @@ export default function CounselorSignUpPage() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    
+    // Validate IC Number first
+    if (!form.icNumber || form.icNumber.length !== 12 || !/^\d{12}$/.test(form.icNumber)) {
+      alert('IC Number must be exactly 12 digits with no dashes or non-numeric characters.');
+      return;
+    }
+    
     // Validate required fields
     const requiredFields = [
       "fullName", "email", "icNumber", "age", "phoneNumber", "registrationNumber", "certificate", "profileImage", "location", "address", "latitude", "longitude", "password"
@@ -199,13 +216,19 @@ export default function CounselorSignUpPage() {
                 <input
                   name="icNumber"
                   type="text"
-                  placeholder="IC Number"
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 text-gray-700 bg-gray-50"
+                  placeholder="12 digits only (e.g. 991231071234)"
+                  className={`w-full pl-10 pr-4 py-2 rounded-lg border ${form.icNumber && form.icNumber.length !== 12 ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-blue-200'} focus:outline-none focus:ring-2 text-gray-700 bg-gray-50`}
                   value={form.icNumber}
                   onChange={handleICChange}
+                  maxLength={12}
+                  pattern="[0-9]{12}"
+                  title="Must be exactly 12 digits"
                   required
                 />
               </div>
+              {form.icNumber && form.icNumber.length !== 12 && (
+                <p className="text-red-500 text-sm mt-1">IC Number must be exactly 12 digits ({form.icNumber.length}/12)</p>
+              )}
             </div>
             <div>
               <label className="block text-lg font-semibold text-gray-700 mb-1">Age</label>

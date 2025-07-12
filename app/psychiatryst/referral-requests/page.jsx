@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PsychiatristSidebar from "../Sidebar";
 import { Mail, User, Clock, Check, X } from "lucide-react";
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 const STATUS_COLORS = {
   "Pending": "bg-yellow-100 text-yellow-800",
@@ -19,6 +20,13 @@ export default function PsychiatristReferralRequestsPage() {
   const [error, setError] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
+
+  // Auto-refresh referral requests data every 12 seconds
+  const { refresh: refreshRequests } = useAutoRefresh(
+    fetchRequests,
+    12000, // 12 seconds
+    isAuthenticated && user // Only refresh when authenticated and user loaded
+  );
 
   // Authentication check on page load
   useEffect(() => {
@@ -184,6 +192,10 @@ export default function PsychiatristReferralRequestsPage() {
           <div className="flex items-center gap-2 mb-6">
             <Mail size={22} className="text-blue-600" />
             <h1 className="text-2xl font-bold text-gray-900">Pending Referral Requests</h1>
+            <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span>Auto-refresh: ON</span>
+            </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-4 mb-6 items-center w-full">
             <label className="font-medium text-gray-700">Filter by status:</label>

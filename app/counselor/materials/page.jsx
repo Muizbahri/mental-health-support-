@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { PlayCircle, Music, FileText, Plus, Edit, Trash2, ExternalLink } from "lucide-react";
 import CounselorSidebar from "../Sidebar";
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 const sectionMeta = {
   video: { icon: <PlayCircle size={24} className="text-blue-400" />, label: "Video", color: "from-blue-50 to-blue-100" },
@@ -24,11 +25,9 @@ export default function CounselorMaterialsPage() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState({ open: false, type: "add", mat: null, matType: "video" });
   const [form, setForm] = useState({ type: "video", title: "", upload: "", description: "" });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  useEffect(() => {
-    fetchMaterials();
-  }, []);
-
+  // Fetch materials function
   async function fetchMaterials() {
     setLoading(true);
     const res = await fetch("/api/materials");
@@ -36,6 +35,21 @@ export default function CounselorMaterialsPage() {
     setMaterials(groupByType(data.data || []));
     setLoading(false);
   }
+
+  // Auto-refresh materials data every 20 seconds
+  const { refresh: refreshMaterials } = useAutoRefresh(
+    fetchMaterials,
+    20000, // 20 seconds
+    isAuthenticated // Only refresh when authenticated
+  );
+
+  useEffect(() => {
+    const token = localStorage.getItem('counselorToken');
+    if (token) {
+      setIsAuthenticated(true);
+      fetchMaterials();
+    }
+  }, []);
 
   function openAdd(type) {
     setForm({ type, title: "", upload: "", description: "" });
@@ -80,7 +94,13 @@ export default function CounselorMaterialsPage() {
     <div className="min-h-screen w-full flex bg-white">
       <CounselorSidebar activePage="MATERIALS" />
       <main className="flex-1 w-full p-4 sm:p-10">
-        <h1 className="text-3xl font-bold text-blue-800 mb-8">Materials</h1>
+        <div className="flex items-center gap-4 mb-8">
+          <h1 className="text-3xl font-bold text-blue-800">Materials</h1>
+          <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Auto-refresh: ON</span>
+          </div>
+        </div>
         {loading ? <div>Loading...</div> : (
         <div className="flex flex-col gap-8">
           {MATERIAL_TYPES.map(type => (

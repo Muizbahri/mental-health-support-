@@ -2,13 +2,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PsychiatristSidebar from "../Sidebar";
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 const STATUS_COLORS = {
   "In Progress": "bg-yellow-100 text-yellow-800",
-  "Resolved": "bg-blue-100 text-blue-800",
+  "Rejected": "bg-blue-100 text-blue-800",
   "Solved": "bg-green-100 text-green-800",
 };
-const STATUS_OPTIONS = ["All", "In Progress", "Resolved", "Solved"];
+const STATUS_OPTIONS = ["All", "In Progress", "Rejected", "Solved"];
 
 export default function PsychiatristEmergencyCasesPage() {
   const router = useRouter();
@@ -31,6 +32,13 @@ export default function PsychiatristEmergencyCasesPage() {
   const [saving, setSaving] = useState(false);
   const [professionals, setProfessionals] = useState({ counselors: [], psychiatrists: [] });
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Auto-refresh emergency cases data every 12 seconds
+  const { refresh: refreshCases } = useAutoRefresh(
+    fetchCases,
+    12000, // 12 seconds
+    isAuthenticated // Only refresh when authenticated
+  );
 
   // Authentication check on page load
   useEffect(() => {
@@ -242,7 +250,7 @@ export default function PsychiatristEmergencyCasesPage() {
 
   // Status summary counts
   const inProgress = cases.filter(c => c.status === "In Progress").length;
-  const resolved = cases.filter(c => c.status === "Resolved").length;
+  const rejected = cases.filter(c => c.status === "Rejected").length;
   const solved = cases.filter(c => c.status === "Solved").length;
 
   // Get today's date and time for min attribute
@@ -428,11 +436,17 @@ export default function PsychiatristEmergencyCasesPage() {
     <div className="min-h-screen w-full flex bg-white">
       <PsychiatristSidebar activePage="EMERGENCY" />
       <main className="flex-1 w-full p-4 sm:p-8">
-        <h2 className="text-2xl font-bold text-black mb-6">My Emergency Cases</h2>
+        <div className="flex items-center gap-4 mb-6">
+          <h2 className="text-2xl font-bold text-black">My Emergency Cases</h2>
+          <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Auto-refresh: ON</span>
+          </div>
+        </div>
         {/* Status summary cards */}
         <div className="flex gap-4 mb-8">
           <StatusCard label="In Progress" count={inProgress} color="bg-yellow-100" />
-          <StatusCard label="Resolved" count={resolved} color="bg-blue-100" />
+          <StatusCard label="Rejected" count={rejected} color="bg-blue-100" />
           <StatusCard label="Solved" count={solved} color="bg-green-100" />
         </div>
         {/* Search and filter row */}
@@ -544,7 +558,7 @@ export default function PsychiatristEmergencyCasesPage() {
                     onChange={handleFormChange}
                   >
                     <option value="In Progress">In Progress</option>
-                    <option value="Resolved">Resolved</option>
+                    <option value="Rejected">Rejected</option>
                     <option value="Solved">Solved</option>
                   </select>
                 </div>

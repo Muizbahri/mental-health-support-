@@ -4,11 +4,221 @@ const counselorsModel = require('../models/counselors');
 const psychiatristAppointmentsModel = require('../models/psychiatristAppointments');
 const psychiatristsModel = require('../models/psychiatrists');
 
+// Admin methods (no authentication required)
+exports.createAdminAppointment = async (req, res) => {
+  try {
+    const { role, name_patient, contact, assigned_to, status, date_time, psychiatrist_id } = req.body;
+    
+    if (!role || !name_patient || !assigned_to || !status || !date_time) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    console.log('Admin creating appointment:', { role, name_patient, assigned_to, status, date_time });
+
+    if (role === 'Psychiatrist') {
+      // Use provided psychiatrist_id or find by name
+      let finalPsychiatristId = psychiatrist_id;
+      if (!finalPsychiatristId) {
+        const psychiatrist = await psychiatristsModel.getPsychiatristByFullName(assigned_to);
+        if (!psychiatrist) {
+          return res.status(400).json({ error: 'Assigned psychiatrist not found' });
+        }
+        finalPsychiatristId = psychiatrist.id;
+      }
+
+      const appointmentData = {
+        name_patient,
+        contact: contact || 'admin@system.com',
+        assigned_to,
+        psychiatrist_id: finalPsychiatristId,
+        status,
+        date_time,
+        created_by: 'admin'
+      };
+
+      const id = await psychiatristAppointmentsModel.createPsychiatristAppointment(appointmentData);
+      return res.status(201).json({ success: true, message: 'Psychiatrist appointment created', id });
+
+    } else if (role === 'Counselor') {
+      // Find counselor by name to get counselor_id
+      const counselor = await counselorsModel.getCounselorByFullName(assigned_to);
+      if (!counselor) {
+        return res.status(400).json({ error: 'Assigned counselor not found' });
+      }
+
+      const appointmentData = {
+        role,
+        name_patient,
+        contact: contact || 'admin@system.com',
+        assigned_to,
+        status,
+        date_time,
+        created_by: 'admin',
+        counselor_id: counselor.id
+      };
+
+      const id = await appointmentsModel.createAppointment(appointmentData);
+      return res.status(201).json({ success: true, message: 'Counselor appointment created', id });
+
+    } else {
+      return res.status(400).json({ error: 'Invalid role. Must be "Counselor" or "Psychiatrist"' });
+    }
+
+  } catch (error) {
+    console.error('Error in createAdminAppointment:', error);
+    res.status(500).json({ error: error.message || 'Server error while creating appointment' });
+  }
+};
+
+exports.getAdminAppointments = async (req, res) => {
+  try {
+    console.log('Admin fetching all appointments');
+    
+    // Get both counselor and psychiatrist appointments
+    const counselorAppointments = await appointmentsModel.getAppointments({});
+    const psychiatristAppointments = await psychiatristAppointmentsModel.getAllPsychiatristAppointments();
+
+    // Add role field to counselor appointments if missing
+    const counselorData = counselorAppointments.map(apt => ({
+      ...apt,
+      role: apt.role || 'Counselor'
+    }));
+
+    // Add role field to psychiatrist appointments
+    const psychiatristData = psychiatristAppointments.map(apt => ({
+      ...apt,
+      role: 'Psychiatrist'
+    }));
+
+    // Combine all appointments
+    const allAppointments = [...counselorData, ...psychiatristData];
+
+    console.log(`Admin fetched ${counselorData.length} counselor and ${psychiatristData.length} psychiatrist appointments`);
+
+    res.json({ success: true, data: allAppointments });
+  } catch (err) {
+    console.error('Error in getAdminAppointments:', err);
+    res.status(500).json({ error: 'Failed to fetch appointments' });
+  }
+};
+
+exports.updateAdminAppointment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, name_patient, contact, assigned_to, status, date_time, psychiatrist_id } = req.body;
+
+    if (!role || !name_patient || !assigned_to || !status || !date_time) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    console.log('Admin updating appointment:', { id, role, name_patient, assigned_to });
+
+    if (role === 'Psychiatrist') {
+      // Use provided psychiatrist_id or find by name
+      let finalPsychiatristId = psychiatrist_id;
+      if (!finalPsychiatristId) {
+        const psychiatrist = await psychiatristsModel.getPsychiatristByFullName(assigned_to);
+        if (!psychiatrist) {
+          return res.status(400).json({ error: 'Assigned psychiatrist not found' });
+        }
+        finalPsychiatristId = psychiatrist.id;
+      }
+
+      const success = await psychiatristAppointmentsModel.updatePsychiatristAppointment(id, {
+        name_patient,
+        contact: contact || 'admin@system.com',
+        assigned_to,
+        psychiatrist_id: finalPsychiatristId,
+        status,
+        date_time
+      });
+
+      if (!success) {
+        return res.status(404).json({ success: false, message: 'Psychiatrist appointment not found' });
+      }
+
+    } else if (role === 'Counselor') {
+      // Find counselor by name to get counselor_id
+      const counselor = await counselorsModel.getCounselorByFullName(assigned_to);
+      if (!counselor) {
+        return res.status(400).json({ error: 'Assigned counselor not found' });
+      }
+
+      const success = await appointmentsModel.updateAppointment(id, {
+        role,
+        name_patient,
+        contact: contact || 'admin@system.com',
+        assigned_to,
+        status,
+        date_time,
+        created_by: 'admin',
+        counselor_id: counselor.id
+      });
+
+      if (!success) {
+        return res.status(404).json({ success: false, message: 'Counselor appointment not found' });
+      }
+
+    } else {
+      return res.status(400).json({ error: 'Invalid role. Must be "Counselor" or "Psychiatrist"' });
+    }
+
+    res.json({ success: true, message: 'Appointment updated successfully' });
+  } catch (error) {
+    console.error('Error in updateAdminAppointment:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.deleteAdminAppointment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log('Admin deleting appointment ID:', id);
+    
+    // Try to delete from both tables since appointments can be in either
+    let success = false;
+    
+    // Try counselor appointments table first
+    try {
+      const counselorResult = await appointmentsModel.deleteAppointment(id);
+      if (counselorResult) {
+        console.log('Successfully deleted counselor appointment');
+        success = true;
+      }
+    } catch (err) {
+      console.log('Not found in counselor appointments table');
+    }
+    
+    // If not found in counselor table, try psychiatrist appointments table
+    if (!success) {
+      try {
+        const psychiatristResult = await psychiatristAppointmentsModel.deletePsychiatristAppointment(id);
+        if (psychiatristResult) {
+          console.log('Successfully deleted psychiatrist appointment');
+          success = true;
+        }
+      } catch (err) {
+        console.log('Not found in psychiatrist appointments table');
+      }
+    }
+    
+    if (!success) {
+      return res.status(404).json({ success: false, message: 'Appointment not found in either table' });
+    }
+    
+    res.json({ success: true, message: 'Appointment deleted successfully' });
+  } catch (error) {
+    console.error('Error in deleteAdminAppointment:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 exports.createAppointment = async (req, res) => {
   try {
-    const { role, name_patient, contact, assigned_to, status, date_time } = req.body;
+    const { role, name_patient, contact, assigned_to, status, date_time, user_public_id } = req.body;
     if (!role || !name_patient || !contact || !assigned_to || !status || !date_time) {
-      return res.status(400).json({ error: 'Missing required fields' });
+      return res.status(400).json({ error: 'Missing required fields: role, name_patient, contact, assigned_to, status, date_time' });
     }
     // Validate date_time is at least 1 hour in the future
     const now = new Date();
@@ -41,7 +251,7 @@ exports.createAppointment = async (req, res) => {
       }
       counselor_id = counselor.id;
     }
-    const id = await appointmentsModel.createAppointment({ role, name_patient, contact, assigned_to, status, date_time, created_by, counselor_id });
+    const id = await appointmentsModel.createAppointment({ role, name_patient, user_public_id, contact, assigned_to, status, date_time, created_by, counselor_id });
     res.status(201).json({ message: 'Appointment created', id });
   } catch (error) {
     res.status(500).json({ error: error.message || 'Server error while creating appointment' });
@@ -194,11 +404,13 @@ exports.getPsychiatristAppointmentsForUser = async (req, res) => {
 // Public appointment creation (no authentication required)
 exports.createPublicAppointment = async (req, res) => {
   try {
-    const { role, user_public_id, assigned_to, status, date_time, contact } = req.body;
+    const { role, name_patient, user_public_id, assigned_to, status, date_time, contact } = req.body;
     
-    if (!role || !user_public_id || !assigned_to || !status || !date_time) {
+    if (!role || !name_patient || !user_public_id || !assigned_to || !status || !date_time) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
+
+    console.log('Creating public appointment:', { role, name_patient, user_public_id, assigned_to, status, date_time });
 
     // Business hours validation: 8:00 AM to 7:00 PM
     const appointmentDate = new Date(date_time);
@@ -233,6 +445,7 @@ exports.createPublicAppointment = async (req, res) => {
       }
       
       const appointmentData = {
+        name_patient,
         user_public_id,
         contact: userContact,
         assigned_to,
@@ -269,6 +482,7 @@ exports.createPublicAppointment = async (req, res) => {
       }
       const appointmentData = {
         role,
+        name_patient,
         user_public_id,
         contact: userContact,
         assigned_to,
@@ -331,9 +545,9 @@ exports.getPublicAppointments = async (req, res) => {
 exports.updatePublicAppointment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { role, user_public_id, assigned_to, status, date_time, contact } = req.body;
+    const { role, name_patient, user_public_id, assigned_to, status, date_time, contact } = req.body;
     
-    if (!role || !user_public_id || !assigned_to || !status || !date_time) {
+    if (!role || !name_patient || !user_public_id || !assigned_to || !status || !date_time) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
@@ -372,6 +586,7 @@ exports.updatePublicAppointment = async (req, res) => {
       
       // Update in psychiatrist_appointments table
       const success = await psychiatristAppointmentsModel.updatePsychiatristAppointment(id, {
+        name_patient,
         user_public_id,
         contact: userContact,
         assigned_to,
@@ -410,6 +625,7 @@ exports.updatePublicAppointment = async (req, res) => {
       // Update in appointments table
       const success = await appointmentsModel.updateAppointment(id, {
         role,
+        name_patient,
         user_public_id,
         contact: userContact,
         assigned_to,

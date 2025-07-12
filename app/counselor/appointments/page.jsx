@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
+import { Edit, Trash2, RefreshCw } from "lucide-react";
 import CounselorSidebar from "../Sidebar";
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 export default function CounselorAppointmentsPage() {
   const [appointments, setAppointments] = useState([]);
@@ -21,6 +23,14 @@ export default function CounselorAppointmentsPage() {
     if (!user) return;
     fetchAppointments();
   }, []);
+
+  // Auto-refresh appointments data every 12 seconds
+  const { refresh: refreshAppointments } = useAutoRefresh(
+    fetchAppointments,
+    12000, // 12 seconds
+    !!userRef.current,
+    []
+  );
 
   function fetchAppointments() {
     setLoading(true);
@@ -112,17 +122,29 @@ export default function CounselorAppointmentsPage() {
       if (!counselorId) counselorId = current.counselor_id;
       if (!assignedTo) assignedTo = current.assigned_to;
     }
+    
+    // Set assigned_to to user's email if not provided (for counselors)
+    if (!assignedTo) assignedTo = user.email;
+    
     const payload = {
       role: "Counselor",
       name_patient: form.client_name,
-      user_public_id: userPublicId,
-      counselor_id: counselorId,
       contact: form.contact,
       assigned_to: assignedTo,
       status: form.status,
       date_time: form.date + (form.time ? ` ${form.time}` : ""),
       created_by: user.email
     };
+    
+    // Only include user_public_id if it has a valid value
+    if (userPublicId && userPublicId !== '' && userPublicId !== 'undefined') {
+      payload.user_public_id = userPublicId;
+    }
+    
+    // Only include counselor_id if it has a valid value
+    if (counselorId && counselorId !== '' && counselorId !== 'undefined') {
+      payload.counselor_id = counselorId;
+    }
     let url = "/api/appointments/protected";
     let method = "POST";
     if (modalMode === "edit" && current) {
@@ -136,7 +158,7 @@ export default function CounselorAppointmentsPage() {
       body: JSON.stringify(payload)
     });
     if (res.ok) {
-      fetchAppointments();
+      refreshAppointments();
       closeModal();
     } else {
       const errorData = await res.json().catch(() => ({ message: 'Unknown error' }));
@@ -177,7 +199,13 @@ export default function CounselorAppointmentsPage() {
       <CounselorSidebar activePage="APPOINTMENTS" />
       <main className="flex-1 w-full p-4 sm:p-8">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Appointments</h2>
+          <div className="flex items-center gap-4">
+            <h2 className="text-2xl font-bold text-gray-900">Appointments</h2>
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <RefreshCw size={14} className="animate-spin" />
+              <span>Auto-refresh: ON</span>
+            </div>
+          </div>
           <button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg shadow transition">+ New Appointment</button>
         </div>
         {/* Search and Filter Row */}
@@ -196,7 +224,7 @@ export default function CounselorAppointmentsPage() {
           >
             <option value="All">All</option>
             <option value="In Progress">In Progress</option>
-            <option value="Resolved">Resolved</option>
+            <option value="Rejected">Rejected</option>
             <option value="Accepted">Accepted</option>
           </select>
         </div>
@@ -227,13 +255,17 @@ export default function CounselorAppointmentsPage() {
                         <span className={
                           appt.status === "Accepted" ? "bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-medium" :
                           appt.status === "In Progress" ? "bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium" :
-                          appt.status === "Resolved" ? "bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium" :
+                          appt.status === "Rejected" ? "bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium" :
                           "bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs font-medium"
                         }>{appt.status}</span>
                       </td>
                       <td className="py-2 px-4 space-x-2 text-black">
-                        <button onClick={() => openEditModal(appt)} className="bg-yellow-400 hover:bg-yellow-500 text-white px-3 py-1 rounded transition text-xs font-medium">Edit</button>
-                        <button onClick={() => handleDelete(appt.id)} disabled={deletingId === appt.id} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition text-xs font-medium">{deletingId === appt.id ? "Deleting..." : "Delete"}</button>
+                        <button onClick={() => openEditModal(appt)} className="text-blue-600 hover:text-blue-800 transition" title="Edit">
+                          <Edit size={18} />
+                        </button>
+                        <button onClick={() => handleDelete(appt.id)} disabled={deletingId === appt.id} className="text-red-600 hover:text-red-800 transition" title="Delete">
+                          <Trash2 size={18} />
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -268,7 +300,7 @@ export default function CounselorAppointmentsPage() {
                   <select name="status" value={form.status} onChange={handleFormChange} className="w-full px-3 py-2 border rounded-lg text-black placeholder-gray-400">
                     <option value="Accepted">Accepted</option>
                     <option value="In Progress">In Progress</option>
-                    <option value="Resolved">Resolved</option>
+                    <option value="Rejected">Rejected</option>
                   </select>
                 </div>
                 <div className="flex gap-4 mt-4">
