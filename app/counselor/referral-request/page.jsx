@@ -91,13 +91,6 @@ export default function ReferralRequestPage() {
   const [deleteId, setDeleteId] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Auto-refresh referral requests data every 12 seconds
-  const { refresh: refreshRequests } = useAutoRefresh(
-    fetchRequests,
-    12000, // 12 seconds
-    isAuthenticated // Only refresh when authenticated
-  );
-
   const fetchRequests = async () => {
     setLoading(true);
     try {
@@ -114,6 +107,13 @@ export default function ReferralRequestPage() {
     }
     setLoading(false);
   };
+
+  // Auto-refresh referral requests data every 12 seconds
+  const { refresh: refreshRequests } = useAutoRefresh(
+    fetchRequests,
+    12000, // 12 seconds
+    isAuthenticated // Only refresh when authenticated
+  );
 
   useEffect(() => { 
     fetchRequests(); 
