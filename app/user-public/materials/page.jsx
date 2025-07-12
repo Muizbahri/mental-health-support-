@@ -4,6 +4,7 @@ import Image from "next/image";
 import Sidebar from "../Sidebar";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 const ReactPlayer = dynamic(() => import("react-player"), { ssr: false });
 
@@ -79,28 +80,43 @@ export default function MaterialsPage() {
   const [preview, setPreview] = useState(null);
   const [descriptionModal, setDescriptionModal] = useState({ isOpen: false, content: null });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Fetch materials function
+  const fetchMaterials = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/materials');
+      if (!res.ok) {
+        throw new Error('Failed to fetch materials');
+      }
+      const data = await res.json();
+      if (data.success) {
+        const videos = data.data.filter(m => m.type === 'video');
+        const music = data.data.filter(m => m.type === 'music');
+        const articles = data.data.filter(m => m.type === 'article');
+        setMaterials({ videos, music, articles });
+      }
+    } catch (error) {
+      console.error("Error fetching materials:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Auto-refresh materials data every 20 seconds
+  const { refresh: refreshMaterials } = useAutoRefresh(
+    fetchMaterials,
+    20000, // 20 seconds
+    isAuthenticated // Only refresh when authenticated
+  );
 
   useEffect(() => {
-    async function fetchMaterials() {
-      try {
-        const res = await fetch('/api/materials');
-        if (!res.ok) {
-          throw new Error('Failed to fetch materials');
-        }
-        const data = await res.json();
-        if (data.success) {
-          const videos = data.data.filter(m => m.type === 'video');
-          const music = data.data.filter(m => m.type === 'music');
-          const articles = data.data.filter(m => m.type === 'article');
-          setMaterials({ videos, music, articles });
-        }
-      } catch (error) {
-        console.error("Error fetching materials:", error);
-      } finally {
-        setLoading(false);
-      }
+    const token = localStorage.getItem("publicToken");
+    if (token) {
+      setIsAuthenticated(true);
+      fetchMaterials();
     }
-    fetchMaterials();
   }, []);
 
   const openDescription = (e, material) => {
@@ -145,7 +161,13 @@ export default function MaterialsPage() {
       </div>
       {/* Main Content */}
       <main className="flex-1 p-4 sm:p-6 md:p-10 transition-all duration-200">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Materials</h1>
+        <div className="flex items-center gap-4 mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Materials</h1>
+          <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Auto-refresh: ON</span>
+          </div>
+        </div>
         {preview && <PreviewModal material={preview} onClose={() => setPreview(null)} />}
         {descriptionModal.isOpen && (
           <DescriptionModal 

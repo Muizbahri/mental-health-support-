@@ -31,6 +31,8 @@ exports.createPublicEmergencyCase = async ({ name_patient, ic_number }) => {
 exports.getAllEmergencyCases = async (filter = {}) => {
   let sql = 'SELECT * FROM emergency_cases';
   const params = [];
+  
+  // Only apply WHERE clause if filters are provided
   if (filter.psychiatrist_id) {
     sql += ' WHERE psychiatrist_id = ?';
     params.push(filter.psychiatrist_id);
@@ -38,8 +40,13 @@ exports.getAllEmergencyCases = async (filter = {}) => {
     sql += ' WHERE counselor_id = ?';
     params.push(filter.counselor_id);
   }
-  sql += ' ORDER BY id DESC';
+  
+  sql += ' ORDER BY created_at DESC, id DESC';
+  console.log('Executing emergency cases query:', sql, 'with params:', params);
+  
   const [rows] = await db.query(sql, params);
+  console.log(`Found ${rows.length} emergency cases in database`);
+  
   return rows;
 };
 

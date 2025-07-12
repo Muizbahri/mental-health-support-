@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Menu, X } from 'lucide-react';
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ReactDOM from "react-dom";
+import toast from 'react-hot-toast';
 
 const gad7Questions = [
   "Feeling nervous, anxious, or on edge",
@@ -31,7 +32,19 @@ export default function GAD7Assessment() {
     setAnswers(updated);
   };
 
+  const handleNext = () => {
+    if (answers[currentQuestionIndex] === null) {
+      toast.error("Please answer the question before proceeding to the next one.");
+      return;
+    }
+    setCurrentQuestionIndex((prev) => prev + 1);
+  };
+
   const handleSubmit = () => {
+    if (answers[currentQuestionIndex] === null) {
+      toast.error("Please answer the question before submitting.");
+      return;
+    }
     const answersStr = JSON.stringify(answers);
     router.push(`/user-public/self-assessment/gad7/result?answers=${encodeURIComponent(answersStr)}`);
   };
@@ -116,17 +129,15 @@ export default function GAD7Assessment() {
               </button>
               {currentQuestionIndex < gad7Questions.length - 1 ? (
                 <button
-                  onClick={() => setCurrentQuestionIndex((prev) => prev + 1)}
-                  className="px-5 py-2 rounded bg-blue-600 text-white font-medium flex items-center gap-1"
-                  disabled={answers[currentQuestionIndex] === null}
+                  onClick={handleNext}
+                  className="px-5 py-2 rounded bg-blue-600 text-white font-medium flex items-center gap-1 hover:bg-blue-700"
                 >
                   Next <ArrowRight size={18} />
                 </button>
               ) : (
                 <button
                   onClick={handleSubmit}
-                  className="px-5 py-2 rounded bg-green-600 text-white font-medium"
-                  disabled={answers[currentQuestionIndex] === null}
+                  className="px-5 py-2 rounded bg-green-600 text-white font-medium hover:bg-green-700"
                 >
                   Submit
                 </button>

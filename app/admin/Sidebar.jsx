@@ -13,7 +13,7 @@ const menu = [
   { key: "EMERGENCY", label: "Manage Emergency Case", icon: <AlertTriangle size={20} />, path: "/admin/manage-emergency" },
   { key: "SCRAPE_ACTIVITIES", label: "Scrape Activities", icon: <FileText size={20} />, path: "/admin/scrape-activities" },
   { key: "REFERRAL", label: "Referral Request", icon: <ArrowRight size={20} />, path: "/admin/referral-request" },
-  { key: "PROFILE", label: "Profile", icon: <User size={20} />, path: "/admin/profile" },
+  
 ];
 
 export default function AdminSidebar() {

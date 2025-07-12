@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import AdminSidebar from "../Sidebar";
 import { Plus, Edit, Trash2 } from "lucide-react";
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 const STATUS_OPTIONS = ["Pending", "Accepted", "Rejected"];
 
@@ -93,6 +94,21 @@ export default function ReferralRequestPage() {
   const [editId, setEditId] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken');
+    if (token) {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  // Auto-refresh referral requests data every 12 seconds
+  const { refresh: refreshRequests } = useAutoRefresh(
+    fetchRequests,
+    12000, // 12 seconds
+    isAuthenticated // Only refresh when authenticated
+  );
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -107,7 +123,12 @@ export default function ReferralRequestPage() {
     }
     setLoading(false);
   };
-  useEffect(() => { fetchRequests(); }, []);
+
+  useEffect(() => { 
+    if (isAuthenticated) {
+      fetchRequests(); 
+    }
+  }, [isAuthenticated]);
 
   const handleAdd = async form => {
     const res = await fetch("/api/referral-requests", {
@@ -153,7 +174,13 @@ export default function ReferralRequestPage() {
       <AdminSidebar />
       <main className="flex-1 p-8 space-y-8 overflow-x-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-black">Referral Requests</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-bold text-black">Referral Requests</h1>
+            <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span>Auto-refresh: ON</span>
+            </div>
+          </div>
           <button className="bg-[#6b6bce] hover:bg-[#5757b2] text-white font-semibold px-4 py-2 rounded flex items-center gap-2" onClick={() => setShowModal(true)}>
             <Plus size={18} /> Add New
           </button>
@@ -190,9 +217,23 @@ export default function ReferralRequestPage() {
                       </td>
                       <td className="p-2 text-black">{r.created_at ? new Date(r.created_at).toLocaleString() : ""}</td>
                       <td className="p-2 text-black">{r.psychiatrist_id}</td>
-                      <td className="p-2 text-black flex gap-2">
-                        <button onClick={() => handleEdit(r.id)} className="px-2 py-1 bg-yellow-400 text-black rounded flex items-center gap-1"><Edit size={16} />Edit</button>
-                        <button onClick={() => handleDelete(r.id)} className="px-2 py-1 bg-red-600 text-white rounded flex items-center gap-1"><Trash2 size={16} />Delete</button>
+                      <td className="p-2 text-black">
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => handleEdit(r.id)} 
+                            className="flex items-center gap-1 px-2 py-1 text-blue-700 font-semibold hover:bg-blue-50 rounded text-xs"
+                          >
+                            <Edit size={12} />
+                            Edit
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(r.id)} 
+                            className="flex items-center gap-1 px-2 py-1 text-red-700 font-semibold hover:bg-red-50 rounded text-xs"
+                          >
+                            <Trash2 size={12} />
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

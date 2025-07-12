@@ -6,7 +6,7 @@ const token = process.env.TELEGRAM_BOT_TOKEN || 'fallback-token';
 
 // Initialize bot with polling mode
 let bot;
-bot = new TelegramBot(token, { polling: true });
+bot = new TelegramBot(token, { polling: false });
 console.log('Telegram bot loaded with polling mode');
 
 // In-memory store for user assessment states
