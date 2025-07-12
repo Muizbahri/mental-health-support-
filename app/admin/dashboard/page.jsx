@@ -59,35 +59,60 @@ export default function AdminDashboard() {
       setLoading(true);
       setError('');
 
-      // Fetch all statistics in parallel
-      const [usersRes, materialsRes, feedbacksRes, emergencyRes, appointmentsRes] = await Promise.all([
-        fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/materials', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/feedbacks', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/emergency_cases', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/appointments', { headers: { 'Authorization': `Bearer ${token}` } })
-      ]);
+      // Helper function to safely fetch and parse JSON
+      const safeFetch = async (url, options = {}) => {
+        try {
+          const response = await fetch(url, options);
+          
+          // Check if response is ok
+          if (!response.ok) {
+            console.error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+            return { success: false, data: [] };
+          }
 
+          // Check if response is JSON
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            console.error(`Invalid content type for ${url}: ${contentType}`);
+            return { success: false, data: [] };
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error(`Error fetching ${url}:`, error);
+          return { success: false, data: [] };
+        }
+      };
+
+      // Fetch all statistics in parallel with error handling
       const [usersData, materialsData, feedbacksData, emergencyData, appointmentsData] = await Promise.all([
-        usersRes.json(),
-        materialsRes.json(),
-        feedbacksRes.json(),
-        emergencyRes.json(),
-        appointmentsRes.json()
+        safeFetch('/api/public-users', { headers: { 'Authorization': `Bearer ${token}` } }),
+        safeFetch('/api/materials', { headers: { 'Authorization': `Bearer ${token}` } }),
+        safeFetch('/api/feedbacks/all', { headers: { 'Authorization': `Bearer ${token}` } }),
+        safeFetch('/api/emergency_cases', { headers: { 'Authorization': `Bearer ${token}` } }),
+        safeFetch('/api/appointments/admin', { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
 
-      // Update stats
+      // Update stats with fallback values
       setStats({
-        totalUsers: usersData.success ? usersData.data.length : 0,
-        totalMaterials: materialsData.success ? materialsData.data.length : 0,
-        totalFeedbacks: feedbacksData.success ? feedbacksData.data.length : 0,
-        totalEmergencies: emergencyData.success ? emergencyData.data.length : 0,
-        totalAppointments: appointmentsData.success ? appointmentsData.data.length : 0
+        totalUsers: (usersData && usersData.success && Array.isArray(usersData.data)) ? usersData.data.length : 0,
+        totalMaterials: (materialsData && materialsData.success && Array.isArray(materialsData.data)) ? materialsData.data.length : 0,
+        totalFeedbacks: (feedbacksData && feedbacksData.success && Array.isArray(feedbacksData.data)) ? feedbacksData.data.length : 0,
+        totalEmergencies: (emergencyData && emergencyData.success && Array.isArray(emergencyData.data)) ? emergencyData.data.length : 0,
+        totalAppointments: (appointmentsData && appointmentsData.success && Array.isArray(appointmentsData.data)) ? appointmentsData.data.length : 0
       });
+
+      // Log any failed endpoints for debugging
+      if (!usersData.success) console.warn('Users API failed');
+      if (!materialsData.success) console.warn('Materials API failed');
+      if (!feedbacksData.success) console.warn('Feedbacks API failed');
+      if (!emergencyData.success) console.warn('Emergency cases API failed');
+      if (!appointmentsData.success) console.warn('Appointments API failed');
 
     } catch (err) {
       console.error('Error fetching admin dashboard data:', err);
-      setError('Failed to load dashboard data.');
+      setError('Failed to load dashboard data. Please check if the backend server is running.');
     } finally {
       setLoading(false);
     }
