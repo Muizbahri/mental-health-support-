@@ -74,6 +74,17 @@ exports.getAppointmentsForPsychiatrist = async (psychiatrist_id) => {
   return rows;
 };
 
+exports.getPsychiatristAppointmentById = async (id) => {
+  const sql = `SELECT pa.id, pa.user_public_id, pa.contact, pa.assigned_to, pa.psychiatrist_id, pa.status, 
+               DATE_FORMAT(pa.date_time, '%Y-%m-%d %H:%i:%s') as date_time, pa.created_by, pa.created_at,
+               COALESCE(pa.name_patient, u.full_name) as name_patient, u.email as patient_email, u.phone_number as patient_phone
+               FROM psychiatrist_appointments pa
+               LEFT JOIN user_public u ON pa.user_public_id = u.id
+               WHERE pa.id = ?`;
+  const [rows] = await db.query(sql, [id]);
+  return rows.length > 0 ? rows[0] : null;
+};
+
 exports.updatePsychiatristAppointment = async (id, { name_patient, user_public_id, contact, assigned_to, psychiatrist_id, status, date_time }) => {
   // If name_patient or user_public_id is not provided, fetch the current value
   let finalNamePatient = name_patient;

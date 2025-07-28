@@ -14,6 +14,11 @@ const getUserId = (userType) => {
       case 'psychiatrist':
         token = localStorage.getItem('psychiatrystToken'); // Note: psychiatryst not psychiatrist
         break;
+      case 'user_public':
+        // For user_public, get user_id directly from localStorage
+        const userPublicId = localStorage.getItem('user_public_id');
+        console.log('getUserId - user_public ID:', userPublicId);
+        return userPublicId ? parseInt(userPublicId) : null;
       case 'admin':
       default:
         // Admin doesn't have a specific user ID

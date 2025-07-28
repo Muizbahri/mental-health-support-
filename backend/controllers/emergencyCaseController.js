@@ -294,7 +294,7 @@ exports.updateEmergencyCase = async (req, res) => {
                   </div>
                   
                   <div style="text-align: center; margin: 30px 0;">
-                    <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/${userType}/${role === 'Counselor' ? 'emergency-reports' : 'emergency-cases'}" 
+                    <a href="${process.env.BASE_URL}/${userType}/${role === 'Counselor' ? 'emergency-reports' : 'emergency-cases'}" 
                        style="background-color: #dc3545; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block;">
                       📋 View Emergency Cases
                     </a>
@@ -471,7 +471,7 @@ exports.createPublicEmergencyCase = async (req, res) => {
               </p>
             </div>
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin/manage-emergency" 
+              <a href="${process.env.BASE_URL}/admin/manage-emergency" 
                  style="background-color: #dc3545; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
                 View Emergency Cases
               </a>
