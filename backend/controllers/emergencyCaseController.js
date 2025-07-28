@@ -4,55 +4,77 @@ const psychiatristsModel = require('../models/psychiatrists');
 
 exports.createEmergencyCase = async (req, res) => {
   try {
-    const { name_patient, ic_number, date_time, status, assigned_to, role } = req.body;
+    const { name_patient, ic_number, date_time, status, assigned_to, role, counselor_id, psychiatrist_id } = req.body;
     if (!name_patient || !ic_number || !date_time || !status || !assigned_to || !role) {
       return res.status(400).json({ success: false, message: 'All fields are required.' });
     }
-    let counselor_id = null;
-    let psychiatrist_id = null;
     
-    console.log('Processing emergency case assignment:', { role, assigned_to });
+    console.log('Processing emergency case assignment:', { role, assigned_to, counselor_id, psychiatrist_id });
     
-    if (role === 'Counselor') {
-      let counselor = await counselorsModel.getCounselorByEmail(assigned_to);
-      if (!counselor) {
-        counselor = await counselorsModel.getCounselorByFullName(assigned_to);
+    let finalCounselorId = null;
+    let finalPsychiatristId = null;
+    
+    // If IDs are provided from frontend (admin), use them directly
+    if (counselor_id !== undefined && counselor_id !== null) {
+      finalCounselorId = counselor_id;
+    } else if (psychiatrist_id !== undefined && psychiatrist_id !== null) {
+      finalPsychiatristId = psychiatrist_id;
+    } else {
+      // Fallback: Look up by name if IDs not provided
+      if (role === 'Counselor') {
+        let counselor = await counselorsModel.getCounselorByEmail(assigned_to);
+        if (!counselor) {
+          counselor = await counselorsModel.getCounselorByFullName(assigned_to);
+        }
+        if (!counselor) {
+          console.log('Counselor not found:', assigned_to);
+          return res.status(400).json({ success: false, message: 'Assigned counselor not found.' });
+        }
+        
+        // Check if user is trying to assign to themselves (if authenticated as counselor)
+        if (req.user && req.user.role === 'counselor' && req.user.id === counselor.id) {
+          console.log('Self-assignment attempt blocked:', { user_id: req.user.id, assigned_id: counselor.id });
+          return res.status(400).json({ success: false, message: 'You cannot assign an emergency case to yourself.' });
+        }
+        
+        finalCounselorId = counselor.id;
+        console.log('Counselor assigned via lookup:', { name: counselor.full_name, id: finalCounselorId });
+      } else if (role === 'Psychiatrist') {
+        let psychiatrist = await psychiatristsModel.getPsychiatristByEmail(assigned_to);
+        if (!psychiatrist) {
+          psychiatrist = await psychiatristsModel.getPsychiatristByFullName(assigned_to);
+        }
+        if (!psychiatrist) {
+          console.log('Psychiatrist not found:', assigned_to);
+          return res.status(400).json({ success: false, message: 'Assigned psychiatrist not found.' });
+        }
+        
+        // Check if user is trying to assign to themselves (if authenticated as psychiatrist)
+        if (req.user && req.user.role === 'psychiatrist' && req.user.id === psychiatrist.id) {
+          console.log('Self-assignment attempt blocked:', { user_id: req.user.id, assigned_id: psychiatrist.id });
+          return res.status(400).json({ success: false, message: 'You cannot assign an emergency case to yourself.' });
+        }
+        
+        finalPsychiatristId = psychiatrist.id;
+        console.log('Psychiatrist assigned via lookup:', { name: psychiatrist.full_name, id: finalPsychiatristId });
       }
-      if (!counselor) {
-        console.log('Counselor not found:', assigned_to);
-        return res.status(400).json({ success: false, message: 'Assigned counselor not found.' });
-      }
-      
-      // Check if user is trying to assign to themselves (if authenticated as counselor)
-      if (req.user && req.user.role === 'counselor' && req.user.id === counselor.id) {
-        console.log('Self-assignment attempt blocked:', { user_id: req.user.id, assigned_id: counselor.id });
-        return res.status(400).json({ success: false, message: 'You cannot assign an emergency case to yourself.' });
-      }
-      
-      counselor_id = counselor.id;
-      console.log('Counselor assigned:', { name: counselor.full_name, id: counselor_id });
-    } else if (role === 'Psychiatrist') {
-      let psychiatrist = await psychiatristsModel.getPsychiatristByEmail(assigned_to);
-      if (!psychiatrist) {
-        psychiatrist = await psychiatristsModel.getPsychiatristByFullName(assigned_to);
-      }
-      if (!psychiatrist) {
-        console.log('Psychiatrist not found:', assigned_to);
-        return res.status(400).json({ success: false, message: 'Assigned psychiatrist not found.' });
-      }
-      
-      // Check if user is trying to assign to themselves (if authenticated as psychiatrist)
-      if (req.user && req.user.role === 'psychiatrist' && req.user.id === psychiatrist.id) {
-        console.log('Self-assignment attempt blocked:', { user_id: req.user.id, assigned_id: psychiatrist.id });
-        return res.status(400).json({ success: false, message: 'You cannot assign an emergency case to yourself.' });
-      }
-      
-      psychiatrist_id = psychiatrist.id;
-      console.log('Psychiatrist assigned:', { name: psychiatrist.full_name, id: psychiatrist_id });
     }
-    const id = await emergencyCaseModel.createEmergencyCase({ name_patient, ic_number, date_time, status, assigned_to, role, counselor_id, psychiatrist_id });
+    
+    console.log('Final assignment IDs:', { counselor_id: finalCounselorId, psychiatrist_id: finalPsychiatristId });
+    
+    const id = await emergencyCaseModel.createEmergencyCase({ 
+      name_patient, 
+      ic_number, 
+      date_time, 
+      status, 
+      assigned_to, 
+      role, 
+      counselor_id: finalCounselorId, 
+      psychiatrist_id: finalPsychiatristId 
+    });
     res.status(201).json({ success: true, message: 'Emergency case created successfully', id });
   } catch (error) {
+    console.error('Error creating emergency case:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -60,14 +82,18 @@ exports.createEmergencyCase = async (req, res) => {
 exports.getAllEmergencyCases = async (req, res) => {
   try {
     let filter = {};
+    // Only apply filters if specific query parameters are provided
     if (req.query.psychiatrist_id) {
       filter.psychiatrist_id = req.query.psychiatrist_id;
     } else if (req.query.counselor_id) {
       filter.counselor_id = req.query.counselor_id;
     }
+    // If no filters are specified, get all cases (for admin view)
     const cases = await emergencyCaseModel.getAllEmergencyCases(filter);
+    console.log(`Fetched ${cases.length} emergency cases with filter:`, filter);
     res.json({ success: true, data: cases });
   } catch (error) {
+    console.error('Error fetching emergency cases:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -86,70 +112,74 @@ exports.deleteEmergencyCase = async (req, res) => {
 exports.updateEmergencyCase = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name_patient, ic_number, date_time, status, assigned_to, role } = req.body;
+    const { name_patient, ic_number, date_time, status, assigned_to, role, counselor_id, psychiatrist_id } = req.body;
+    
+    console.log('Update request received for case ID:', id);
+    console.log('Request body:', req.body);
+    
     if (!name_patient || !ic_number || !date_time || !status || !assigned_to || !role) {
+      console.log('Validation failed - missing required fields:', {
+        name_patient: !!name_patient,
+        ic_number: !!ic_number,
+        date_time: !!date_time,
+        status: !!status,
+        assigned_to: !!assigned_to,
+        role: !!role
+      });
       return res.status(400).json({ success: false, message: 'All fields are required.' });
     }
 
-    // Get the current case to check existing assignment
-    const currentCase = await emergencyCaseModel.getEmergencyCaseById(id);
-    if (!currentCase) {
-      return res.status(404).json({ success: false, message: 'Emergency case not found.' });
-    }
-
-    let counselor_id = null;
-    let psychiatrist_id = null;
+    let finalCounselorId = null;
+    let finalPsychiatristId = null;
     
-    console.log('Updating emergency case assignment:', { id, role, assigned_to });
-    console.log('Current case assignment:', { 
-      current_assigned_to: currentCase.assigned_to, 
-      current_psychiatrist_id: currentCase.psychiatrist_id,
-      current_counselor_id: currentCase.counselor_id 
+    // If IDs are provided from frontend (admin), use them directly
+    if (counselor_id !== undefined && counselor_id !== null) {
+      finalCounselorId = counselor_id;
+    } else if (psychiatrist_id !== undefined && psychiatrist_id !== null) {
+      finalPsychiatristId = psychiatrist_id;
+    } else {
+      // Fallback: Look up by name if IDs not provided (for counselor/psychiatrist updates)
+      if (role === 'Counselor') {
+        let counselor = await counselorsModel.getCounselorByEmail(assigned_to);
+        if (!counselor) {
+          counselor = await counselorsModel.getCounselorByFullName(assigned_to);
+        }
+        if (counselor) {
+          finalCounselorId = counselor.id;
+        }
+      } else if (role === 'Psychiatrist') {
+        let psychiatrist = await psychiatristsModel.getPsychiatristByEmail(assigned_to);
+        if (!psychiatrist) {
+          psychiatrist = await psychiatristsModel.getPsychiatristByFullName(assigned_to);
+        }
+        if (psychiatrist) {
+          finalPsychiatristId = psychiatrist.id;
+        }
+      }
+    }
+    
+    console.log('Final update assignment IDs:', { counselor_id: finalCounselorId, psychiatrist_id: finalPsychiatristId });
+    
+    const success = await emergencyCaseModel.updateEmergencyCase(id, { 
+      name_patient, 
+      ic_number, 
+      date_time, 
+      status, 
+      assigned_to, 
+      role, 
+      counselor_id: finalCounselorId, 
+      psychiatrist_id: finalPsychiatristId 
     });
     
-    if (role === 'Counselor') {
-      let counselor = await counselorsModel.getCounselorByEmail(assigned_to);
-      if (!counselor) {
-        counselor = await counselorsModel.getCounselorByFullName(assigned_to);
-      }
-      if (!counselor) {
-        console.log('Counselor not found during update:', assigned_to);
-        return res.status(400).json({ success: false, message: 'Assigned counselor not found.' });
-      }
-      
-      // Only check self-assignment if the assignment is actually changing
-      const isAssignmentChanging = currentCase.counselor_id !== counselor.id;
-      if (isAssignmentChanging && req.user && req.user.role === 'counselor' && req.user.id === counselor.id) {
-        console.log('Self-assignment attempt blocked (update):', { user_id: req.user.id, assigned_id: counselor.id });
-        return res.status(400).json({ success: false, message: 'You cannot assign an emergency case to yourself.' });
-      }
-      
-      counselor_id = counselor.id;
-      console.log('Counselor assigned during update:', { name: counselor.full_name, id: counselor_id, assignment_changed: isAssignmentChanging });
-    } else if (role === 'Psychiatrist') {
-      let psychiatrist = await psychiatristsModel.getPsychiatristByEmail(assigned_to);
-      if (!psychiatrist) {
-        psychiatrist = await psychiatristsModel.getPsychiatristByFullName(assigned_to);
-      }
-      if (!psychiatrist) {
-        console.log('Psychiatrist not found during update:', assigned_to);
-        return res.status(400).json({ success: false, message: 'Assigned psychiatrist not found.' });
-      }
-      
-      // Only check self-assignment if the assignment is actually changing
-      const isAssignmentChanging = currentCase.psychiatrist_id !== psychiatrist.id;
-      if (isAssignmentChanging && req.user && req.user.role === 'psychiatrist' && req.user.id === psychiatrist.id) {
-        console.log('Self-assignment attempt blocked (update):', { user_id: req.user.id, assigned_id: psychiatrist.id });
-        return res.status(400).json({ success: false, message: 'You cannot assign an emergency case to yourself.' });
-      }
-      
-      psychiatrist_id = psychiatrist.id;
-      console.log('Psychiatrist assigned during update:', { name: psychiatrist.full_name, id: psychiatrist_id, assignment_changed: isAssignmentChanging });
+    if (!success) {
+      console.log('Update failed - case not found or no changes made for ID:', id);
+      return res.status(404).json({ success: false, message: 'Emergency case not found or no changes made.' });
     }
-    const success = await emergencyCaseModel.updateEmergencyCase(id, { name_patient, ic_number, date_time, status, assigned_to, role, counselor_id, psychiatrist_id });
-    if (!success) return res.status(404).json({ success: false, message: 'Emergency case not found.' });
+    
+    console.log('Emergency case updated successfully:', id);
     res.json({ success: true, message: 'Emergency case updated successfully.' });
   } catch (error) {
+    console.error('Error updating emergency case:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

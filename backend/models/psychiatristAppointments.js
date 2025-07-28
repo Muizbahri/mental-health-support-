@@ -1,23 +1,36 @@
 const db = require('../config/db');
 
-exports.createPsychiatristAppointment = async ({ user_public_id, contact, assigned_to, psychiatrist_id, status, date_time, created_by }) => {
-  if (!user_public_id || !contact || !assigned_to || !psychiatrist_id || !status || !date_time || !created_by) {
-    throw new Error('Missing required fields');
-  }
-  // Fetch the latest full_name from user_public
-  const [userRows] = await db.query('SELECT full_name FROM user_public WHERE id = ?', [user_public_id]);
-  const name_patient = userRows[0]?.full_name || '';
+exports.createPsychiatristAppointment = async (data) => {
+  console.log('📝 Received data in createPsychiatristAppointment:', data);
+  
+  const { name_patient, contact, assigned_to, psychiatrist_id, status, date_time, created_by, user_public_id } = data;
+  
+  // Detailed validation with specific error messages
+  if (!name_patient) throw new Error("Missing name_patient");
+  if (!contact) throw new Error("Missing contact");
+  if (!assigned_to) throw new Error("Missing assigned_to");
+  if (!psychiatrist_id) throw new Error("Missing psychiatrist_id");
+  if (!status) throw new Error("Missing status");
+  if (!date_time) throw new Error("Missing date_time");
+  if (!created_by) throw new Error("Missing created_by");
+  
+  console.log('✅ All required fields validated successfully');
+  
+  // For new appointments from frontend, we create without user_public_id
+  // The name_patient is provided directly from the form
   const [result] = await db.query(
     'INSERT INTO psychiatrist_appointments (name_patient, user_public_id, contact, assigned_to, psychiatrist_id, status, date_time, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())',
-    [name_patient, user_public_id, contact, assigned_to, psychiatrist_id, status, date_time, created_by]
+    [name_patient, user_public_id || null, contact, assigned_to, psychiatrist_id, status, date_time, created_by]
   );
+  
+  console.log('📤 Psychiatrist appointment created with ID:', result.insertId);
   return result.insertId;
 };
 
 exports.getAllPsychiatristAppointments = async () => {
   const sql = `SELECT pa.id, pa.user_public_id, pa.contact, pa.assigned_to, pa.psychiatrist_id, pa.status, 
                DATE_FORMAT(pa.date_time, '%Y-%m-%d %H:%i:%s') as date_time, pa.created_by, pa.created_at,
-               u.full_name as name_patient, u.email as patient_email, u.phone_number as patient_phone
+               COALESCE(pa.name_patient, u.full_name) as name_patient, u.email as patient_email, u.phone_number as patient_phone
                FROM psychiatrist_appointments pa
                LEFT JOIN user_public u ON pa.user_public_id = u.id
                ORDER BY pa.date_time DESC`;
@@ -28,7 +41,7 @@ exports.getAllPsychiatristAppointments = async () => {
 exports.getPsychiatristAppointmentsByPsychiatristId = async (psychiatrist_id) => {
   const sql = `SELECT pa.id, pa.user_public_id, pa.contact, pa.assigned_to, pa.psychiatrist_id, pa.status, 
                DATE_FORMAT(pa.date_time, '%Y-%m-%d %H:%i:%s') as date_time, pa.created_by, pa.created_at,
-               u.full_name as name_patient, u.email as patient_email, u.phone_number as patient_phone
+               COALESCE(pa.name_patient, u.full_name) as name_patient, u.email as patient_email, u.phone_number as patient_phone
                FROM psychiatrist_appointments pa
                LEFT JOIN user_public u ON pa.user_public_id = u.id
                WHERE pa.psychiatrist_id = ? ORDER BY pa.date_time DESC`;
@@ -39,7 +52,7 @@ exports.getPsychiatristAppointmentsByPsychiatristId = async (psychiatrist_id) =>
 exports.getPsychiatristAppointmentsByUserId = async (user_public_id) => {
   const sql = `SELECT pa.id, pa.user_public_id, pa.contact, pa.assigned_to, pa.psychiatrist_id, pa.status, 
                DATE_FORMAT(pa.date_time, '%Y-%m-%d %H:%i:%s') as date_time, pa.created_by, pa.created_at,
-               u.full_name as name_patient, u.email as patient_email, u.phone_number as patient_phone
+               COALESCE(pa.name_patient, u.full_name) as name_patient, u.email as patient_email, u.phone_number as patient_phone
                FROM psychiatrist_appointments pa
                LEFT JOIN user_public u ON pa.user_public_id = u.id
                WHERE pa.user_public_id = ? 
@@ -53,7 +66,7 @@ exports.getPsychiatristAppointmentsByUserId = async (user_public_id) => {
 exports.getAppointmentsForPsychiatrist = async (psychiatrist_id) => {
   const sql = `SELECT pa.id, pa.user_public_id, pa.contact, pa.assigned_to, pa.psychiatrist_id, pa.status, 
                DATE_FORMAT(pa.date_time, '%Y-%m-%d %H:%i:%s') as date_time, pa.created_by, pa.created_at,
-               u.full_name as name_patient, u.email as patient_email, u.phone_number as patient_phone
+               COALESCE(pa.name_patient, u.full_name) as name_patient, u.email as patient_email, u.phone_number as patient_phone
                FROM psychiatrist_appointments pa
                LEFT JOIN user_public u ON pa.user_public_id = u.id
                WHERE pa.psychiatrist_id = ?`;

@@ -1,13 +1,15 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
+import { Edit, Trash2 } from "lucide-react";
 import CounselorSidebar from "../Sidebar";
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 const STATUS_COLORS = {
   "In Progress": "bg-yellow-100 text-yellow-800",
-  "Resolved": "bg-blue-100 text-blue-800",
+  "Rejected": "bg-blue-100 text-blue-800",
   "Solved": "bg-green-100 text-green-800",
 };
-const STATUS_OPTIONS = ["All", "In Progress", "Resolved", "Solved"];
+const STATUS_OPTIONS = ["All", "In Progress", "Rejected", "Solved"];
 
 export default function EmergencyReportsPage() {
   const [cases, setCases] = useState([]);
@@ -18,7 +20,7 @@ export default function EmergencyReportsPage() {
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState("view");
   const [current, setCurrent] = useState(null);
-  const [editForm, setEditForm] = useState({ status: "In Progress", notes: "" });
+  const [editForm, setEditForm] = useState({ status: "In Progress" });
   const [deletingId, setDeletingId] = useState(null);
   const userRef = useRef(null);
   const [newForm, setNewForm] = useState({
@@ -31,22 +33,41 @@ export default function EmergencyReportsPage() {
   });
   const [professionals, setProfessionals] = useState({ counselors: [], psychiatrists: [] });
   const [adding, setAdding] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  useEffect(() => {
+  // Fetch emergency cases function
+  const fetchCases = async () => {
     const user = JSON.parse(localStorage.getItem('counselorUser'));
     userRef.current = user;
     if (!user) return;
     setLoading(true);
     const token = localStorage.getItem('counselorToken');
-            fetch(`/api/emergency-cases?counselor_id=${user.id}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        setCases(data.success ? data.data : []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    try {
+      const res = await fetch(`/api/emergency-cases?counselor_id=${user.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setCases(data.success ? data.data : []);
+    } catch (error) {
+      console.error('Error fetching cases:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Auto-refresh emergency cases data every 12 seconds
+  const { refresh: refreshCases } = useAutoRefresh(
+    fetchCases,
+    12000, // 12 seconds
+    isAuthenticated // Only refresh when authenticated
+  );
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('counselorUser'));
+    if (user) {
+      setIsAuthenticated(true);
+      fetchCases();
+    }
   }, []);
 
   useEffect(() => {
@@ -98,7 +119,24 @@ export default function EmergencyReportsPage() {
   function openEditModal(c) {
     setModalMode("edit");
     setCurrent(c);
-    setEditForm({ status: c.status, notes: c.notes || "" });
+    // Format date_time for datetime-local input (expects YYYY-MM-DDTHH:mm format)
+    let formattedDateTime = "";
+    if (c.date_time) {
+      const date = new Date(c.date_time);
+      if (!isNaN(date)) {
+        // Convert to local timezone and format for datetime-local input
+        date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+        formattedDateTime = date.toISOString().slice(0, 16);
+      }
+    }
+    
+    // Initialize edit form with all current values
+    setEditForm({ 
+      name_patient: c.name_patient || "",
+      ic_number: c.ic_number || "",
+      date_time: formattedDateTime,
+      status: c.status,
+    });
     setShowModal(true);
   }
   function closeModal() {
@@ -123,31 +161,78 @@ export default function EmergencyReportsPage() {
       const selected = professionals.psychiatrists.find(p => p.full_name === current.assigned_to || p.email === current.assigned_to);
       psychiatrist_id = selected ? selected.id : null;
     }
+    
+    // Format original date_time for comparison
+    let originalFormattedDateTime = "";
+    if (current.date_time) {
+      const date = new Date(current.date_time);
+      if (!isNaN(date)) {
+        date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+        originalFormattedDateTime = date.toISOString().slice(0, 16);
+      }
+    }
+    
+    // Check if any changes were made before proceeding
+    const hasChanges = 
+      editForm.name_patient !== (current.name_patient || "") ||
+      editForm.ic_number !== (current.ic_number || "") ||
+      editForm.date_time !== originalFormattedDateTime ||
+      editForm.status !== current.status;
+    
+    if (!hasChanges) {
+      // No changes made, just close the modal
+      closeModal();
+      return;
+    }
+    
+    // Always send all required fields to backend (it requires all fields)
     const payload = {
-      name_patient: editForm.name_patient ?? current.name_patient,
-      ic_number: editForm.ic_number ?? current.ic_number,
-      date_time: editForm.date_time ?? current.date_time,
-      status: editForm.status ?? current.status,
+      name_patient: editForm.name_patient,
+      ic_number: editForm.ic_number,
+      date_time: editForm.date_time,
+      status: editForm.status,
       assigned_to: current.assigned_to, // Keep existing assignment
       role: current.role, // Keep existing role
       counselor_id,
       psychiatrist_id,
     };
+    
     const token = localStorage.getItem('counselorToken');
-          const res = await fetch(`/api/emergency-cases/${current.id}`, {
-      method: "PUT",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) {
-      const updated = cases.map(c => c.id === current.id ? { ...c, ...payload } : c);
-      setCases(updated);
-      closeModal();
-    } else {
-      alert("Failed to update case.");
+    
+    console.log('Sending update request with payload:', payload);
+    console.log('Current case ID:', current.id);
+    
+    try {
+      const res = await fetch(`/api/emergency-cases/${current.id}`, {
+        method: "PUT",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (res.ok) {
+        const result = await res.json();
+        console.log('Update successful:', result);
+        
+        // Update the cases list with the modified fields only
+        const updated = cases.map(c => {
+          if (c.id === current.id) {
+            return { ...c, ...payload };
+          }
+          return c;
+        });
+        setCases(updated);
+        closeModal();
+      } else {
+        const errorData = await res.json();
+        console.error('Update failed:', errorData);
+        alert(`Failed to update case: ${errorData.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Network error during update:', error);
+      alert("Network error: Failed to update case.");
     }
   }
   async function handleDelete(id) {
@@ -230,17 +315,23 @@ export default function EmergencyReportsPage() {
 
   // Status summary counts
   const inProgress = cases.filter(c => c.status === "In Progress").length;
-  const resolved = cases.filter(c => c.status === "Resolved").length;
+  const rejected = cases.filter(c => c.status === "Rejected").length;
   const solved = cases.filter(c => c.status === "Solved").length;
 
   return (
     <div className="min-h-screen w-full flex bg-white">
       <CounselorSidebar activePage="EMERGENCY REPORTS" />
       <main className="flex-1 w-full p-4 sm:p-8">
-        <h2 className="text-2xl font-bold text-black mb-6">My Emergency Cases</h2>
+        <div className="flex items-center gap-4 mb-6">
+          <h2 className="text-2xl font-bold text-black">My Emergency Cases</h2>
+          <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Auto-refresh: ON</span>
+          </div>
+        </div>
         <div className="flex gap-4 mb-8">
           <StatusCard label="In Progress" count={inProgress} color="bg-yellow-100" />
-          <StatusCard label="Resolved" count={resolved} color="bg-blue-100" />
+          <StatusCard label="Rejected" count={rejected} color="bg-blue-100" />
           <StatusCard label="Solved" count={solved} color="bg-green-100" />
         </div>
         <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
@@ -291,8 +382,12 @@ export default function EmergencyReportsPage() {
                         <span className={`px-2 py-1 rounded-full text-xs font-medium text-black ${STATUS_COLORS[c.status] || "bg-gray-100"}`}>{c.status}</span>
                       </td>
                       <td className="py-2 px-4 space-x-2">
-                        <button onClick={() => openEditModal(c)} className="bg-yellow-400 hover:bg-yellow-500 text-white px-3 py-1 rounded transition text-xs font-medium text-black">Edit</button>
-                        <button onClick={() => handleDelete(c.id)} disabled={deletingId === c.id} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition text-xs font-medium text-black">{deletingId === c.id ? "Deleting..." : "Delete"}</button>
+                        <button onClick={() => openEditModal(c)} className="text-blue-600 hover:text-blue-800 transition" title="Edit">
+                          <Edit size={18} />
+                        </button>
+                        <button onClick={() => handleDelete(c.id)} disabled={deletingId === c.id} className="text-red-600 hover:text-red-800 transition" title="Delete">
+                          <Trash2 size={18} />
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -321,24 +416,25 @@ export default function EmergencyReportsPage() {
                 <h3 className="text-xl font-bold mb-4 text-black">Edit Emergency Case</h3>
                 <div className="mb-3">
                   <label className="block text-sm font-medium mb-1 text-black">Name (Patient)</label>
-                  <input type="text" required name="name_patient" value={editForm.name_patient ?? current.name_patient} onChange={handleEditChange} className="w-full px-3 py-2 border rounded-lg text-black" />
+                  <input type="text" required name="name_patient" value={editForm.name_patient} onChange={handleEditChange} className="w-full px-3 py-2 border rounded-lg text-black" />
                 </div>
                 <div className="mb-3">
                   <label className="block text-sm font-medium mb-1 text-black">IC Number</label>
-                  <input type="text" required name="ic_number" value={editForm.ic_number ?? current.ic_number} onChange={handleEditChange} className="w-full px-3 py-2 border rounded-lg text-black" />
+                  <input type="text" required name="ic_number" value={editForm.ic_number} onChange={handleEditChange} className="w-full px-3 py-2 border rounded-lg text-black" />
                 </div>
                 <div className="mb-3">
                   <label className="block text-sm font-medium mb-1 text-black">Date/Time</label>
-                  <input type="datetime-local" required name="date_time" value={editForm.date_time ?? current.date_time} onChange={handleEditChange} className="w-full px-3 py-2 border rounded-lg text-black" min={(() => { const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); return now.toISOString().slice(0,16); })()} />
+                  <input type="datetime-local" required name="date_time" value={editForm.date_time} onChange={handleEditChange} className="w-full px-3 py-2 border rounded-lg text-black" min={(() => { const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); return now.toISOString().slice(0,16); })()} />
                 </div>
                 <div className="mb-3">
                   <label className="block text-sm font-medium mb-1 text-black">Status</label>
-                  <select name="status" required value={editForm.status ?? current.status} onChange={handleEditChange} className="w-full px-3 py-2 border rounded-lg text-black">
+                  <select name="status" required value={editForm.status} onChange={handleEditChange} className="w-full px-3 py-2 border rounded-lg text-black">
                     <option value="In Progress">In Progress</option>
-                    <option value="Resolved">Resolved</option>
+                    <option value="Rejected">Rejected</option>
                     <option value="Solved">Solved</option>
                   </select>
                 </div>
+
                 <div className="flex justify-end gap-2">
                   <button type="button" onClick={closeModal} className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-black">Cancel</button>
                   <button type="submit" className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold text-black">Save</button>
@@ -364,7 +460,7 @@ export default function EmergencyReportsPage() {
                   <label className="block text-sm font-medium mb-1 text-black">Status</label>
                   <select required value={newForm.status} onChange={e => setNewForm(f => ({ ...f, status: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-black">
                     <option value="In Progress">In Progress</option>
-                    <option value="Resolved">Resolved</option>
+                    <option value="Rejected">Rejected</option>
                     <option value="Solved">Solved</option>
                   </select>
                 </div>

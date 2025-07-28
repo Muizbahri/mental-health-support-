@@ -4,6 +4,8 @@ import { Phone, AlertTriangle, MessageCircle, MapPin, CheckCircle, Shield, Menu,
 import Sidebar from "../Sidebar";
 import { getDistance } from 'geolib';
 import axios from 'axios';
+import toast from 'react-hot-toast';
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 const contacts = [
   {
@@ -99,6 +101,7 @@ export default function EmergencyCasePage() {
   const [geoError, setGeoError] = useState("");
   const [formData, setFormData] = useState({ fullName: '', icNumber: '' });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   // Search functionality state
   const [searchAddress, setSearchAddress] = useState('');
@@ -106,6 +109,39 @@ export default function EmergencyCasePage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
+
+  // Check authentication
+  useEffect(() => {
+    const token = localStorage.getItem("publicToken");
+    if (token) {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  // Auto-refresh location data every 30 seconds (less frequent since this is location-based)
+  const { refresh: refreshLocation } = useAutoRefresh(
+    () => {
+      // Only refresh if user location is available
+      if (userLocation) {
+        function sortCentersByDistance(lat, lng) {
+          const sorted = [...allCenters]
+            .map(center => ({
+              ...center,
+              distance: getDistance(
+                { latitude: lat, longitude: lng },
+                { latitude: center.lat, longitude: center.lng }
+              )
+            }))
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, 3);
+          setNearestCenters(sorted);
+        }
+        sortCentersByDistance(userLocation.lat, userLocation.lng);
+      }
+    },
+    30000, // 30 seconds
+    isAuthenticated && userLocation !== null // Only refresh when authenticated and location is available
+  );
 
   useEffect(() => {
     function sortCentersByDistance(lat, lng) {
@@ -155,29 +191,30 @@ export default function EmergencyCasePage() {
     
     // Validate form fields
     if (!formData.fullName.trim() || !formData.icNumber.trim()) {
-      alert("Please fill in both Full Name and IC Number.");
+      toast.error("Please fill in both Full Name and IC Number.");
       return;
     }
     
     try {
-              const response = await axios.post('/api/emergency-cases', {
+      const response = await axios.post('/api/emergency-cases', {
         name_patient: formData.fullName.trim(),
         ic_number: formData.icNumber.trim()
       });
       
-      if (response.data.success) {
-        alert("Emergency case submitted successfully. Help is on the way.");
+      // Check for successful response (200 or 201)
+      if (response.status === 200 || response.status === 201) {
+        toast.success("Emergency case submitted successfully!", {
+          icon: "✅",
+          style: { 
+            background: "#4ade80", 
+            color: "white" 
+          },
+        });
         setFormData({ fullName: '', icNumber: '' });
-      } else {
-        alert("Failed to submit emergency case: " + (response.data.message || "Unknown error"));
       }
     } catch (error) {
       console.error('Error submitting emergency case:', error);
-      if (error.response && error.response.data && error.response.data.message) {
-        alert("Failed to submit emergency case: " + error.response.data.message);
-      } else {
-        alert("Failed to submit emergency case. Please try again or call emergency services directly.");
-      }
+      toast.error("Failed to submit emergency case.");
     }
   };
 
@@ -293,9 +330,13 @@ export default function EmergencyCasePage() {
         {/* Header Section */}
         <div className="bg-[#EF4444] rounded-t-2xl shadow text-white px-8 py-6 mb-8 flex items-center gap-4">
           <AlertTriangle size={32} className="text-white" />
-          <div>
+          <div className="flex-1">
             <div className="text-2xl font-bold mb-1">Emergency Support</div>
             <div className="text-base">If you're experiencing a mental health crisis, you're not alone. Help is available immediately.</div>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1 bg-white/20 text-white rounded-full text-sm">
+            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+            <span>Auto-refresh: ON</span>
           </div>
         </div>
         {/* Immediate Help */}
@@ -305,7 +346,9 @@ export default function EmergencyCasePage() {
             <div className="w-full flex flex-col gap-2">
               <div className="bg-red-50 rounded-lg p-4 flex flex-col items-center md:items-start">
                 <div className="font-semibold text-gray-700 mb-2">If you're in immediate danger:</div>
-                <button className="bg-[#EF4444] hover:bg-red-600 text-white font-semibold px-6 py-2 rounded-lg shadow flex items-center gap-2 text-lg w-full md:w-auto justify-center"><Phone size={20} /> Call 911 Now</button>
+                <a href="tel:911">
+                  <button className="bg-[#EF4444] hover:bg-red-600 text-white font-semibold px-6 py-2 rounded-lg shadow flex items-center gap-2 text-lg w-full md:w-auto justify-center"><Phone size={20} /> Call 911 Now</button>
+                </a>
               </div>
             </div>
           </div>
@@ -313,7 +356,9 @@ export default function EmergencyCasePage() {
             <div className="font-bold text-lg text-blue-700 mb-2 flex items-center gap-2"><Shield size={20} className="text-blue-500" /> For crisis support:</div>
             <div className="w-full flex flex-col gap-2">
               <div className="bg-blue-50 rounded-lg p-4 flex flex-col items-center md:items-start">
-                <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg shadow flex items-center gap-2 text-lg w-full md:w-auto justify-center"><Phone size={20} /> Call 988</button>
+                <a href="tel:988">
+                  <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg shadow flex items-center gap-2 text-lg w-full md:w-auto justify-center"><Phone size={20} /> Call 988</button>
+                </a>
               </div>
             </div>
           </div>
@@ -332,7 +377,9 @@ export default function EmergencyCasePage() {
                   <span className="text-blue-700 font-bold text-lg">{c.number}</span>
                 </div>
                 <div className="text-gray-500 text-xs mb-2">{c.desc}</div>
-                <button className="bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded-lg shadow flex items-center gap-2 w-full md:w-auto justify-center"><Phone size={18} /> Call Now</button>
+                <a href={`tel:${c.number.replace(/[^\d]/g, '')}`}>
+                  <button className="bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded-lg shadow flex items-center gap-2 w-full md:w-auto justify-center"><Phone size={18} /> Call Now</button>
+                </a>
               </div>
             ))}
           </div>

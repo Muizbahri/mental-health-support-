@@ -3,6 +3,7 @@ import PsychiatristSidebar from "../Sidebar";
 import { Video, Music, BookOpen, Plus, ExternalLink, Edit, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 const MATERIAL_TYPES = ["video", "music", "article"];
 
@@ -130,6 +131,13 @@ export default function PsychiatristMaterialsPage() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState({ open: false, initial: null });
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Auto-refresh materials data every 20 seconds
+  const { refresh: refreshMaterials } = useAutoRefresh(
+    fetchMaterials,
+    20000, // 20 seconds
+    isAuthenticated // Only refresh when authenticated
+  );
 
   // Authentication check on page load
   useEffect(() => {
@@ -266,8 +274,14 @@ export default function PsychiatristMaterialsPage() {
   return (
     <div className="min-h-screen flex bg-[#f8fafc]">
       <PsychiatristSidebar activePage="MATERIALS" />
-      <main className="flex-1 px-8 py-10">
-        <h1 className="text-3xl font-bold text-teal-800 mb-8">Materials</h1>
+      <main className="flex-1 w-full p-4 sm:p-8">
+        <div className="flex items-center gap-4 mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Materials</h1>
+          <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Auto-refresh: ON</span>
+          </div>
+        </div>
         {MATERIAL_TYPES.map(type => (
           <SectionCard
             key={type}

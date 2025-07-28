@@ -4,6 +4,7 @@ import { Home, Users, BookOpen, MessageCircle, AlertTriangle, LogOut, Play, Edit
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import AdminSidebar from '../Sidebar';
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 const sidebarMenu = [
   { icon: <Home size={20} />, label: "Dashboard", path: "/admin/dashboard" },
@@ -20,10 +21,13 @@ export default function ManageMaterialsPage() {
   const [modal, setModal] = useState({ open: false, type: null, material: null });
   const [materials, setMaterials] = useState({ video: [], music: [], article: [] });
   const [loading, setLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
-    if (!token) {
+    if (token) {
+      setIsAuthenticated(true);
+    } else {
       router.push('/admin/login');
     }
   }, [router]);
@@ -46,7 +50,18 @@ export default function ManageMaterialsPage() {
     }
   }
 
-  useEffect(() => { fetchMaterials(); }, []);
+  // Auto-refresh materials data every 20 seconds
+  const { refresh: refreshMaterials } = useAutoRefresh(
+    fetchMaterials,
+    20000, // 20 seconds
+    isAuthenticated // Only refresh when authenticated
+  );
+
+  useEffect(() => { 
+    if (isAuthenticated) {
+      fetchMaterials(); 
+    }
+  }, [isAuthenticated]);
 
   function handleAdd(type) {
     setModal({ open: true, type, material: null });
@@ -83,7 +98,13 @@ export default function ManageMaterialsPage() {
     <div className="min-h-screen bg-neutral-50 flex">
       <AdminSidebar />
       <main className="flex-1 p-8 space-y-8">
-        <h1 className="font-bold text-3xl mb-6 text-gray-900">Manage Materials</h1>
+        <div className="flex items-center gap-4 mb-6">
+          <h1 className="font-bold text-3xl text-gray-900">Manage Materials</h1>
+          <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Auto-refresh: ON</span>
+          </div>
+        </div>
 
         {/* Video Section */}
         <div className="bg-white rounded-xl shadow p-6">
@@ -112,11 +133,25 @@ export default function ManageMaterialsPage() {
                 ) : materials.video.map(row => (
                   <tr key={row.id}>
                     <td className="py-2 px-3 text-gray-800">{row.title}</td>
-                    <td className="py-2 px-3 text-gray-800"><a href={row.upload} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">{row.upload}</a></td>
+                    <td className="py-2 px-3 text-gray-800"><a href={row.upload} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Link</a></td>
                     <td className="py-2 px-3 text-gray-800">{row.description}</td>
-                    <td className="py-2 px-3 flex gap-2">
-                      <button className="hover:text-blue-600" onClick={() => handleEdit('video', row)}><Edit size={18} /></button>
-                      <button className="hover:text-red-500" onClick={() => handleDelete(row.id)}><Trash2 size={18} /></button>
+                    <td className="py-2 px-3">
+                      <div className="flex gap-2">
+                        <button 
+                          className="flex items-center gap-1 px-2 py-1 text-blue-700 font-semibold hover:bg-blue-50 rounded text-xs"
+                          onClick={() => handleEdit('video', row)}
+                        >
+                          <Edit size={12} />
+                          Edit
+                        </button>
+                        <button 
+                          className="flex items-center gap-1 px-2 py-1 text-red-700 font-semibold hover:bg-red-50 rounded text-xs"
+                          onClick={() => handleDelete(row.id)}
+                        >
+                          <Trash2 size={12} />
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -153,14 +188,28 @@ export default function ManageMaterialsPage() {
                   <tr key={row.id}>
                     <td className="py-2 px-3 text-gray-800">{row.title}</td>
                     <td className="py-2 px-3 text-gray-800">
-                      <a href={row.upload} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">
-                        {row.upload}
+                      <a href={row.upload} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        Link
                       </a>
                     </td>
                     <td className="py-2 px-3 text-gray-800">{row.description}</td>
-                    <td className="py-2 px-3 flex gap-2">
-                      <button className="hover:text-blue-600" onClick={() => handleEdit('music', row)}><Edit size={18} /></button>
-                      <button className="hover:text-red-500" onClick={() => handleDelete(row.id)}><Trash2 size={18} /></button>
+                    <td className="py-2 px-3">
+                      <div className="flex gap-2">
+                        <button 
+                          className="flex items-center gap-1 px-2 py-1 text-blue-700 font-semibold hover:bg-blue-50 rounded text-xs"
+                          onClick={() => handleEdit('music', row)}
+                        >
+                          <Edit size={12} />
+                          Edit
+                        </button>
+                        <button 
+                          className="flex items-center gap-1 px-2 py-1 text-red-700 font-semibold hover:bg-red-50 rounded text-xs"
+                          onClick={() => handleDelete(row.id)}
+                        >
+                          <Trash2 size={12} />
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -197,14 +246,28 @@ export default function ManageMaterialsPage() {
                   <tr key={row.id}>
                     <td className="py-2 px-3 text-gray-800">{row.title}</td>
                     <td className="py-2 px-3 text-gray-800">
-                      <a href={row.upload} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">
-                        {row.upload}
+                      <a href={row.upload} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        Link
                       </a>
                     </td>
                     <td className="py-2 px-3 text-gray-800">{row.description}</td>
-                    <td className="py-2 px-3 flex gap-2">
-                      <button className="hover:text-blue-600" onClick={() => handleEdit('article', row)}><Edit size={18} /></button>
-                      <button className="hover:text-red-500" onClick={() => handleDelete(row.id)}><Trash2 size={18} /></button>
+                    <td className="py-2 px-3">
+                      <div className="flex gap-2">
+                        <button 
+                          className="flex items-center gap-1 px-2 py-1 text-blue-700 font-semibold hover:bg-blue-50 rounded text-xs"
+                          onClick={() => handleEdit('article', row)}
+                        >
+                          <Edit size={12} />
+                          Edit
+                        </button>
+                        <button 
+                          className="flex items-center gap-1 px-2 py-1 text-red-700 font-semibold hover:bg-red-50 rounded text-xs"
+                          onClick={() => handleDelete(row.id)}
+                        >
+                          <Trash2 size={12} />
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

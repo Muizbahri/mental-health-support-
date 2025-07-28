@@ -3,6 +3,7 @@ import { Calendar, Clock, User, Menu, X } from "lucide-react";
 import Sidebar from "../Sidebar";
 import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 const BASE_URL = "";
 
@@ -37,8 +38,9 @@ export default function AppointmentsPage() {
   const [originalTime, setOriginalTime] = useState('');
   const [originalCounselorId, setOriginalCounselorId] = useState(null);
   const [originalCounselorName, setOriginalCounselorName] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Helper function to fetch appointments
+  // Helper function to fetch appointments - defined before useAutoRefresh
   const fetchUserAppointments = async () => {
     const userPublicId = localStorage.getItem("user_public_id");
 
@@ -72,12 +74,20 @@ export default function AppointmentsPage() {
         return dateA - dateB;
       });
       
+      setAppointments(appts);
       return appts;
     } catch (err) {
       console.error('Error fetching appointments:', err);
       return [];
     }
   };
+
+  // Auto-refresh appointments data every 12 seconds
+  const { refresh: refreshAppointments } = useAutoRefresh(
+    fetchUserAppointments,
+    12000, // 12 seconds
+    isAuthenticated // Only refresh when authenticated
+  );
 
   // Fetch user info and their appointments
   useEffect(() => {
@@ -88,6 +98,8 @@ export default function AppointmentsPage() {
       router.push("/user-public/login");
       return;
     }
+
+    setIsAuthenticated(true);
 
     // Fetch current user profile to get the latest name
     fetch(`${BASE_URL}/api/public-users/profile/me`, {
@@ -303,6 +315,7 @@ export default function AppointmentsPage() {
       // Always include all required fields in the payload
       const appointmentData = {
         role: editingAppointment.role,
+        name_patient: editingAppointment.name_patient || patientName,
         user_public_id: editingAppointment.user_public_id,
         assigned_to: newDoctorName,
         status: editingAppointment.status,
@@ -348,6 +361,7 @@ export default function AppointmentsPage() {
       const newDateTime = `${date}T${time.length === 5 ? time : time.slice(0,5)}`;
       const appointmentData = {
         role: type,
+        name_patient: patientName, // Add the patient name field
         user_public_id: localStorage.getItem("user_public_id"),
         assigned_to: selectedDoctor,
         status: 'In Progress',
@@ -515,7 +529,13 @@ export default function AppointmentsPage() {
       {/* Main Content */}
       <main className="flex-1 p-4 sm:p-6 md:p-10 transition-all duration-200">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Appointments</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-bold text-gray-900">Appointments</h1>
+            <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span>Auto-refresh: ON</span>
+            </div>
+          </div>
           <button
             className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg shadow transition text-base"
             onClick={handleAddNewClick}
@@ -543,16 +563,24 @@ export default function AppointmentsPage() {
                 <div>
                   <label className="block font-semibold text-gray-700 mb-1">Type of Appointment</label>
                   <select
-                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className={`w-full rounded-lg border border-gray-200 px-4 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+                      editingAppointment ? 'bg-gray-100 cursor-not-allowed' : 'bg-gray-50'
+                    }`}
                     value={type}
                     onChange={e => setType(e.target.value)}
                     required
+                    disabled={editingAppointment !== null}
                   >
                     <option value="">Select type...</option>
                     <option value="Counselor">Counselor</option>
                     <option value="Psychiatrist">Psychiatrist</option>
                   </select>
                   {errors.type && <div className="text-red-500 text-xs mt-1">{errors.type}</div>}
+                  {editingAppointment && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      ℹ️ Appointment type cannot be changed when rescheduling
+                    </div>
+                  )}
                 </div>
                 {/* Patient Name */}
                 <div>

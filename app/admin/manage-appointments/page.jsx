@@ -1,9 +1,10 @@
 "use client";
 import { useRouter, usePathname } from "next/navigation";
-import { Home, Users, BookOpen, MessageCircle, AlertTriangle, LogOut, Calendar, User, FileText, CheckSquare, X } from "lucide-react";
+import { Home, Users, BookOpen, MessageCircle, AlertTriangle, LogOut, Calendar, User, FileText, CheckSquare, X, RefreshCw } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import AdminSidebar from '../Sidebar';
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 const sidebarMenu = [
   { icon: <Home size={20} />, label: "Dashboard", path: "/admin/dashboard" },
@@ -102,8 +103,6 @@ function NewAppointmentModal({ isOpen, onClose, onAdd, loading }) {
         sendData.assigned_to = selectedPsych.full_name;
         sendData.psychiatrist_id = selectedPsych.id;
       }
-      const admin = JSON.parse(localStorage.getItem('adminUser') || '{}');
-      if (admin && admin.email) sendData.created_by = admin.email;
     }
     onAdd(sendData, setError);
   };
@@ -191,7 +190,7 @@ function NewAppointmentModal({ isOpen, onClose, onAdd, loading }) {
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
             >
               <option value="" className="text-gray-500">Select status</option>
-              <option value="Resolved" className="text-gray-900">Resolved</option>
+              <option value="Rejected" className="text-gray-900">Rejected</option>
               <option value="In Progress" className="text-gray-900">In Progress</option>
               <option value="Solved" className="text-gray-900">Solved</option>
             </select>
@@ -202,11 +201,6 @@ function NewAppointmentModal({ isOpen, onClose, onAdd, loading }) {
               type="datetime-local"
               required
               value={formData.date_time}
-              min={(() => {
-                const now = new Date();
-                now.setMinutes(now.getMinutes() + 60); // 1 hour ahead
-                return now.toISOString().slice(0, 16);
-              })()}
               onChange={(e) => setFormData({ ...formData, date_time: e.target.value })}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
             />
@@ -215,15 +209,14 @@ function NewAppointmentModal({ isOpen, onClose, onAdd, loading }) {
             <label className="block text-sm font-medium text-gray-900 mb-2">Contact</label>
             <input
               type="text"
-              required
-              value={formData.contact || ''}
+              value={formData.contact}
               onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
-              placeholder="Enter patient contact"
+              placeholder="Enter contact information"
             />
           </div>
           {error && <div className="text-red-600 text-sm font-medium">{error}</div>}
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex justify-end gap-3 pt-4">
             <button
               type="button"
               onClick={onClose}
@@ -248,14 +241,13 @@ function NewAppointmentModal({ isOpen, onClose, onAdd, loading }) {
 
 function EditAppointmentModal({ open, appointment, loading, error, onClose, onSave }) {
   const [formData, setFormData] = useState({
-    role: appointment?.role || '',
-    name_patient: appointment?.name_patient || '',
-    assigned_to: appointment?.assigned_to || '',
-    status: appointment?.status || '',
-    date_time: appointment?.date_time ? appointment.date_time.replace(' ', 'T') : '',
-    contact: appointment?.contact || '',
+    role: "",
+    name_patient: "",
+    assigned_to: "",
+    status: "",
+    date_time: "",
+    contact: "",
   });
-  const [localError, setLocalError] = useState('');
   const [professionals, setProfessionals] = useState({ counselors: [], psychiatrists: [] });
 
   useEffect(() => {
@@ -273,20 +265,22 @@ function EditAppointmentModal({ open, appointment, loading, error, onClose, onSa
         console.error("Failed to fetch professionals:", err);
       }
     }
-    fetchProfessionals();
-  }, []);
+    if (open) {
+      fetchProfessionals();
+    }
+  }, [open]);
 
   useEffect(() => {
     if (appointment) {
+      const dateTime = appointment.date_time ? appointment.date_time.slice(0, 16) : '';
       setFormData({
-        role: appointment.role || '',
-        name_patient: appointment.name_patient || '',
-        assigned_to: appointment.assigned_to || '',
-        status: appointment.status || '',
-        date_time: appointment.date_time ? appointment.date_time.replace(' ', 'T') : '',
-        contact: appointment.contact || '',
+        role: appointment.role || "",
+        name_patient: appointment.name_patient || "",
+        assigned_to: appointment.assigned_to || "",
+        status: appointment.status || "",
+        date_time: dateTime,
+        contact: appointment.contact || "",
       });
-      setLocalError('');
     }
   }, [appointment]);
 
@@ -295,24 +289,31 @@ function EditAppointmentModal({ open, appointment, loading, error, onClose, onSa
   };
 
   function handleChange(e) {
-    setFormData(f => ({ ...f, [e.target.name || e.target.getAttribute('name') || e.target.id]: e.target.value }));
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   }
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (!formData.role || !formData.name_patient || !formData.assigned_to || !formData.status || !formData.date_time || !formData.contact) {
-      setLocalError('All fields are required.');
+    if (!formData.role || !formData.name_patient || !formData.assigned_to || !formData.status || !formData.date_time) {
       return;
     }
-    setLocalError('');
-    // Convert to MySQL format
-    const sendData = { ...formData, date_time: formatMySQLDateTime(formData.date_time) };
+    
+    let sendData = { ...formData, date_time: formatMySQLDateTime(formData.date_time) };
+    if (formData.role === 'Psychiatrist') {
+      const selectedPsych = professionals.psychiatrists.find(p => p.full_name === formData.assigned_to);
+      if (selectedPsych) {
+        sendData.assigned_to = selectedPsych.full_name;
+        sendData.psychiatrist_id = selectedPsych.id;
+      }
+    }
     onSave(sendData);
   }
+
   if (!open) return null;
+
   return (
-    <div className={`fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 ${!open ? 'hidden' : ''}`}>
-      <div className="bg-white rounded-xl shadow-2xl p-4 w-full max-w-xs sm:max-w-sm mx-2" style={{ minWidth: 0 }}>
+    <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-2xl p-4 w-full max-w-xs sm:max-w-sm mx-2">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-gray-900">Edit Appointment</h2>
           <button
@@ -329,11 +330,11 @@ function EditAppointmentModal({ open, appointment, loading, error, onClose, onSa
               required
               value={formData.role}
               onChange={handleRoleChange}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
             >
-              <option value="" className="text-gray-500">Select a role</option>
-              <option value="Psychiatrist" className="text-gray-900">Psychiatrist</option>
-              <option value="Counselor" className="text-gray-900">Counselor</option>
+              <option value="">Select a role</option>
+              <option value="Psychiatrist">Psychiatrist</option>
+              <option value="Counselor">Counselor</option>
             </select>
           </div>
           <div>
@@ -344,47 +345,30 @@ function EditAppointmentModal({ open, appointment, loading, error, onClose, onSa
               required
               value={formData.name_patient}
               onChange={handleChange}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
               placeholder="Enter patient name"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">Contact</label>
-            <input
-              type="text"
-              name="contact"
-              required
-              value={formData.contact}
-              onChange={handleChange}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
-              placeholder="Enter patient contact"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Assigned To</label>
             <select
-              required
               name="assigned_to"
+              required
               value={formData.assigned_to}
               onChange={handleChange}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
               disabled={!formData.role}
             >
               <option value="">Select a professional</option>
               {(formData.role === 'Counselor' ? professionals.counselors : professionals.psychiatrists).map(p => {
-                // Get the registration number based on the professional type
                 const regNumber = formData.role === 'Counselor' 
                   ? p.registration_number || 'N/A' 
                   : p.med_number || 'N/A';
-                
-                // Get the address, with fallback
                 const address = p.address || p.location || 'N/A';
-                
-                // Format the display text
                 const displayText = `${p.full_name} (Reg: ${regNumber}, Address: ${address})`;
                 
                 return (
-                  <option key={p.id} value={p.full_name} className="font-semibold text-gray-800">{displayText}</option>
+                  <option key={p.id} value={p.full_name}>{displayText}</option>
                 );
               })}
             </select>
@@ -392,16 +376,16 @@ function EditAppointmentModal({ open, appointment, loading, error, onClose, onSa
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Status</label>
             <select
-              required
               name="status"
+              required
               value={formData.status}
               onChange={handleChange}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
             >
-              <option value="" className="text-gray-500">Select status</option>
-              <option value="Resolved" className="text-gray-900">Resolved</option>
-              <option value="In Progress" className="text-gray-900">In Progress</option>
-              <option value="Solved" className="text-gray-900">Solved</option>
+              <option value="">Select status</option>
+              <option value="Rejected">Rejected</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Solved">Solved</option>
             </select>
           </div>
           <div>
@@ -412,13 +396,37 @@ function EditAppointmentModal({ open, appointment, loading, error, onClose, onSa
               required
               value={formData.date_time}
               onChange={handleChange}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
             />
           </div>
-          {(localError || error) && <div className="text-red-600 text-sm font-medium">{localError || error}</div>}
-          <div className="flex justify-end gap-4 pt-6">
-            <button type="button" onClick={onClose} className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-900 hover:bg-gray-50 transition font-medium focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2" disabled={loading}>Cancel</button>
-            <button type="submit" className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" disabled={loading}>{loading ? "Saving..." : "Save"}</button>
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-2">Contact</label>
+            <input
+              type="text"
+              name="contact"
+              value={formData.contact}
+              onChange={handleChange}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+              placeholder="Enter contact information"
+            />
+          </div>
+          {error && <div className="text-red-600 text-sm font-medium">{error}</div>}
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-900 hover:bg-gray-50 transition font-medium"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+              disabled={loading}
+            >
+              {loading ? "Saving..." : "Save"}
+            </button>
           </div>
         </form>
       </div>
@@ -438,12 +446,7 @@ export default function ManageAppointmentsPage() {
   const [deleteError, setDeleteError] = useState("");
   const [editModal, setEditModal] = useState({ open: false, appointment: null, loading: false, error: '' });
 
-  useEffect(() => {
-    const token = localStorage.getItem('adminToken');
-    if (!token) {
-      router.push('/admin/login');
-    }
-  }, [router]);
+  // Removed authentication check for admin
 
   function openEditModal(appointment) {
     setEditModal({ open: true, appointment, loading: false, error: '' });
@@ -454,17 +457,16 @@ export default function ManageAppointmentsPage() {
   async function handleEditSave(updatedData) {
     setEditModal((m) => ({ ...m, loading: true, error: '' }));
     try {
-      const token = localStorage.getItem('adminToken');
-      const res = await fetch(`${API_BASE}/protected/${editModal.appointment.id}`, {
+      const res = await fetch(`${API_BASE}/${editModal.appointment.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedData),
       });
       const data = await res.json();
       if (data.success) {
         closeEditModal();
         setSuccessMsg('Appointment updated successfully.');
-        fetchAppointmentsAndSet();
+        refreshAppointments();
       } else {
         setEditModal((m) => ({ ...m, error: data.message || 'Failed to update appointment.' }));
       }
@@ -475,71 +477,55 @@ export default function ManageAppointmentsPage() {
     setEditModal((m) => ({ ...m, loading: false }));
   }
 
-  // API endpoints
-  const API_BASE = '/api/appointments';
+  // API endpoints - using admin-friendly routes
+  const API_BASE = '/api/appointments/admin';
 
   // Fetch all appointments and update state
   async function fetchAppointmentsAndSet() {
     setFetching(true);
     setFetchError("");
     try {
-      const token = localStorage.getItem('adminToken');
-      // Fetch both counselor appointments (from protected route) and psychiatrist appointments
-      const [res1, res2] = await Promise.all([
-        fetch(`${API_BASE}/protected`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_BASE}/psychiatrist`, { headers: { 'Authorization': `Bearer ${token}` } })
-      ]);
+      // Fetch all appointments from admin endpoint (returns both counselor and psychiatrist)
+      const res = await fetch(`${API_BASE}`);
       
-      // Handle responses individually to avoid failing if one table is empty
-      let counselorAppointments = [];
-      let psychiatristAppointments = [];
-      
-             if (res1.ok) {
-      const data1 = await res1.json();
-         counselorAppointments = (data1.data || []).map(a => ({ 
-           ...a, 
-           role: a.role || 'Counselor' // Ensure role is set, default to Counselor
-         }));
-       } else {
-         console.warn('Failed to fetch counselor appointments:', res1.status, res1.statusText);
-       }
-       
-       if (res2.ok) {
-      const data2 = await res2.json();
-         psychiatristAppointments = (data2.data || []).map(a => ({ 
-           ...a, 
-           role: a.role || 'Psychiatrist' // Ensure role is set, default to Psychiatrist
-         }));
-       } else {
-         console.warn('Failed to fetch psychiatrist appointments:', res2.status, res2.statusText);
-       }
-      
-             // Merge all appointments
-       const all = [...counselorAppointments, ...psychiatristAppointments];
-      setAppointments(all);
-       
-       console.log('Fetched appointments:', {
-         counselorCount: counselorAppointments.length,
-         psychiatristCount: psychiatristAppointments.length,
-         totalCount: all.length,
-         counselorSample: counselorAppointments.slice(0, 2),
-         psychiatristSample: psychiatristAppointments.slice(0, 2)
-       });
-       
-       // Only show error if both requests failed
-       if (!res1.ok && !res2.ok) {
-         throw new Error('Failed to fetch any appointments');
-       }
+      if (res.ok) {
+        const data = await res.json();
+        const allAppointments = (data.data || []).map(a => ({ 
+          ...a, 
+          role: a.role || 'Counselor' // Ensure role is set, default to Counselor
+        }));
+        
+        setAppointments(allAppointments);
+        
+        console.log('Fetched appointments:', {
+          totalCount: allAppointments.length,
+          psychiatristCount: allAppointments.filter(a => a.role === 'Psychiatrist').length,
+          counselorCount: allAppointments.filter(a => a.role === 'Counselor').length,
+          sample: allAppointments.slice(0, 3).map(a => ({ id: a.id, role: a.role, name: a.name_patient }))
+        });
+      } else {
+        throw new Error(`Failed to fetch appointments: ${res.status} ${res.statusText}`);
+      }
     } catch (err) {
       console.error('Error fetching appointments:', err);
       setFetchError("Failed to load appointments.");
+      setAppointments([]); // Reset appointments on error
     }
     setFetching(false);
   }
 
+  // Initial data fetch
   useEffect(() => {
     fetchAppointmentsAndSet();
   }, []);
+
+  // Auto-refresh appointments data every 12 seconds
+  const { refresh: refreshAppointments } = useAutoRefresh(
+    fetchAppointmentsAndSet,
+    12000, // 12 seconds
+    true,
+    []
+  );
 
   // Filter appointments by role
   const psychiatristAppointments = appointments.filter(apt => apt.role === "Psychiatrist");
@@ -558,17 +544,16 @@ export default function ManageAppointmentsPage() {
     setError && setError("");
     setSuccessMsg("");
     try {
-      const token = localStorage.getItem('adminToken');
-      const res = await fetch(`${API_BASE}/protected`, {
+      const res = await fetch(`${API_BASE}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", 'Authorization': `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
       const data = await res.json();
-      if (data.success || data.message === 'Appointment created' || data.message === 'Psychiatrist appointment created') {
+      if (data.success || data.message === 'Appointment created' || data.message === 'Psychiatrist appointment created' || data.message === 'Counselor appointment created') {
         setIsModalOpen(false);
         setSuccessMsg("Appointment added successfully.");
-        fetchAppointmentsAndSet();
+        refreshAppointments();
       } else {
         setError && setError(data.message || "Failed to add appointment.");
       }
@@ -583,11 +568,11 @@ export default function ManageAppointmentsPage() {
     if (!window.confirm("Are you sure you want to delete this appointment?")) return;
     setDeleteError("");
     try {
-      const token = localStorage.getItem('adminToken');
-      const res = await fetch(`${API_BASE}/protected/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
-        fetchAppointmentsAndSet();
+        refreshAppointments();
+        setSuccessMsg("Appointment deleted successfully.");
       } else {
         setDeleteError(data.message || "Failed to delete appointment.");
       }
@@ -601,7 +586,13 @@ export default function ManageAppointmentsPage() {
     <div className="min-h-screen w-full bg-white flex">
       <AdminSidebar />
       <main className="flex-1 w-full p-4 sm:p-8 space-y-8">
-        <h1 className="font-bold text-3xl mb-6 text-gray-900">Manage Appointments</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="font-bold text-3xl text-gray-900">Manage Appointments</h1>
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <RefreshCw size={14} className="animate-spin" />
+            <span>Auto-refresh: ON</span>
+          </div>
+        </div>
         {successMsg && <div className="mb-4 text-green-700 bg-green-100 px-4 py-2 rounded-lg font-medium">{successMsg}</div>}
         {fetchError && <div className="mb-4 text-red-700 bg-red-100 px-4 py-2 rounded-lg font-medium">{fetchError}</div>}
         {deleteError && <div className="mb-4 text-red-700 bg-red-100 px-4 py-2 rounded-lg font-medium">{deleteError}</div>}
@@ -659,9 +650,9 @@ export default function ManageAppointmentsPage() {
                     </td>
                   </tr>
                 ) : psychiatristAppointments.map(row => (
-                  <tr key={row.id} className="border-b last:border-b-0 hover:bg-gray-50 transition">
+                  <tr key={`${row.id}-${row.role}`} className="border-b last:border-b-0 hover:bg-gray-50 transition">
                     <td className="py-2 px-3 text-gray-800">{formatDisplayDateTime(row.date_time)}</td>
-                    <td className="py-2 px-3 text-gray-800">{row.name_patient}</td>
+                    <td className="py-2 px-3 text-gray-800">{row.name_patient || '-'}</td>
                     <td className="py-2 px-3 text-gray-800">{row.contact}</td>
                     <td className="py-2 px-3 text-gray-800">{row.assigned_to}</td>
                     <td className="py-2 px-3 text-gray-800">
@@ -739,9 +730,9 @@ export default function ManageAppointmentsPage() {
                     </td>
                   </tr>
                 ) : counselorAppointments.map(row => (
-                  <tr key={row.id} className="border-b last:border-b-0 hover:bg-gray-50 transition">
+                  <tr key={`${row.id}-${row.role}`} className="border-b last:border-b-0 hover:bg-gray-50 transition">
                     <td className="py-2 px-3 text-gray-800">{formatDisplayDateTime(row.date_time)}</td>
-                    <td className="py-2 px-3 text-gray-800">{row.name_patient}</td>
+                    <td className="py-2 px-3 text-gray-800">{row.name_patient || '-'}</td>
                     <td className="py-2 px-3 text-gray-800">{row.contact}</td>
                     <td className="py-2 px-3 text-gray-800">{row.assigned_to}</td>
                     <td className="py-2 px-3 text-gray-800">
@@ -783,7 +774,7 @@ export default function ManageAppointmentsPage() {
           </div>
         </div>
 
-        {/* Edit Appointment Modal */}
+        {/* Edit Modal */}
         <EditAppointmentModal
           open={editModal.open}
           appointment={editModal.appointment}

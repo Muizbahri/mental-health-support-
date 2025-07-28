@@ -22,6 +22,7 @@ import {
 import { useState, useEffect, useRef } from "react";
 import toast from 'react-hot-toast';
 import AdminSidebar from '../Sidebar';
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 const sidebarMenu = [
   { icon: <Home size={20} />, label: "Dashboard", path: "/admin/dashboard" },
@@ -41,10 +42,13 @@ export default function ManageUsersPage() {
   const [publicUsers, setPublicUsers] = useState([]);
   const [counselors, setCounselors] = useState([]);
   const [psychiatrists, setPsychiatrists] = useState([]);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
-    if (!token) {
+    if (token) {
+      setIsAuthenticated(true);
+    } else {
       router.push('/admin/login');
     }
   }, [router]);
@@ -79,29 +83,60 @@ export default function ManageUsersPage() {
     }
   };
 
+  // Auto-refresh users data every 25 seconds
+  const { refresh: refreshUsers } = useAutoRefresh(
+    fetchData,
+    25000, // 25 seconds
+    isAuthenticated // Only refresh when authenticated
+  );
+
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (isAuthenticated) {
+      fetchData();
+    }
+  }, [isAuthenticated]);
 
   function handleEdit(type, user) {
     setModal({ open: true, type, user });
   }
 
   async function handleDelete(type, id) {
+    const confirmed = window.confirm("Are you sure you want to delete this user?");
+    if (!confirmed) {
+      return; // User cancelled, don't delete
+    }
+    
     const endpoint = {
       public: `/api/public-users/${id}`,
       counselor: `/api/counselors/${id}`,
       psychiatrist: `/api/psychiatrists/${id}`
     }[type];
-    await fetch(`${API_BASE}${endpoint}`, { method: "DELETE" });
-    fetchData();
+    
+    const loadingToast = toast.loading('Deleting user...');
+    try {
+      const res = await fetch(`${API_BASE}${endpoint}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success('User deleted successfully', { id: loadingToast });
+        fetchData();
+      } else {
+        toast.error('Failed to delete user', { id: loadingToast });
+      }
+    } catch (err) {
+      toast.error('Something went wrong', { id: loadingToast });
+    }
   }
 
   return (
     <div className="h-screen overflow-y-auto min-h-screen bg-neutral-50 flex">
       <AdminSidebar />
       <main className="flex-1 p-8 space-y-8">
-        <h1 className="text-2xl font-bold mb-8 text-gray-800">Manage Users</h1>
+        <div className="flex items-center gap-4 mb-8">
+          <h1 className="text-2xl font-bold text-gray-800">Manage Users</h1>
+          <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Auto-refresh: ON</span>
+          </div>
+        </div>
         <div className="space-y-8">
           <UserTable
             title="Psychiatrists"
@@ -211,6 +246,10 @@ function UserTable({ title, columns, data, onAddNew, onEdit, onDelete }) {
                         ) : (
                           <span className="text-gray-300">No Image</span>
                         )
+                      ) : col === "address" ? (
+                        (row[col] !== undefined && row[col] !== null && row[col] !== "") ? 
+                          (String(row[col]).length > 25 ? String(row[col]).substring(0, 25) + "..." : String(row[col])) : 
+                          <span className="text-gray-300">-</span>
                       ) : (
                         (row[col] !== undefined && row[col] !== null && row[col] !== "") ? String(row[col]) : <span className="text-gray-300">-</span>
                       )}
@@ -240,7 +279,7 @@ function UserModal({ type, user, onClose }) {
       { name: "age", label: "Age", type: "number", required: true },
       { name: "phone_number", label: "Phone Number", type: "text", required: true },
       { name: "profile_image", label: "Profile Image", type: "file", required: false },
-      { name: "password", label: "Password", type: "password", required: true },
+      { name: "password", label: "Password", type: "password", required: !user },
     ];
   } else if (type === "counselor") {
     fields = [
@@ -256,7 +295,7 @@ function UserModal({ type, user, onClose }) {
       { name: "address", label: "Address", type: "text", required: true },
       { name: "latitude", label: "Latitude", type: "number", required: true },
       { name: "longitude", label: "Longitude", type: "number", required: true },
-      { name: "password", label: "Password", type: "password", required: true },
+      { name: "password", label: "Password", type: "password", required: !user },
     ];
   } else if (type === "psychiatrist") {
     fields = [
@@ -272,7 +311,7 @@ function UserModal({ type, user, onClose }) {
       { name: "address", label: "Address", type: "text", required: true },
       { name: "latitude", label: "Latitude", type: "number", required: true },
       { name: "longitude", label: "Longitude", type: "number", required: true },
-      { name: "password", label: "Password", type: "password", required: true },
+      { name: "password", label: "Password", type: "password", required: !user },
     ];
   }
 
@@ -410,6 +449,10 @@ function UserModal({ type, user, onClose }) {
     const formData = new FormData();
     Object.keys(form).forEach(key => {
       if (form[key]) {
+        // In edit mode, only include password if it's not empty
+        if (key === 'password' && user && !form[key]) {
+          return; // Skip empty password in edit mode
+        }
         formData.append(key, form[key]);
       }
     });
@@ -438,7 +481,9 @@ function UserModal({ type, user, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md">
       <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md relative flex flex-col max-h-[90vh]">
         <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-xl" onClick={onClose}>&times;</button>
-        <h3 className="text-black text-xl font-semibold mb-4">Add New {type.charAt(0).toUpperCase() + type.slice(1).replace(/s$/, "")}</h3>
+        <h3 className="text-black text-xl font-semibold mb-4">
+          {user ? 'Edit' : 'Add New'} {type.charAt(0).toUpperCase() + type.slice(1).replace(/s$/, "")}
+        </h3>
         <form className="flex flex-col flex-1" onSubmit={handleSubmit}>
           <div className="max-h-[75vh] overflow-y-auto px-4 py-2 space-y-4">
             {fields.map(f => (
@@ -495,6 +540,7 @@ function UserModal({ type, user, onClose }) {
                     name={f.name}
                     value={form[f.name] || ''}
                     onChange={handleChange}
+                    placeholder={f.name === 'password' && user ? 'Leave empty to keep current password' : ''}
                     className={`w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-black placeholder:text-gray-500 ${f.name === 'age' ? 'bg-gray-50' : ''}`}
                     required={f.required}
                     readOnly={f.name === 'age'}
@@ -517,7 +563,7 @@ function UserModal({ type, user, onClose }) {
                 type="submit"
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
               >
-                Add
+                {user ? 'Save' : 'Add'}
               </button>
             </div>
           </div>

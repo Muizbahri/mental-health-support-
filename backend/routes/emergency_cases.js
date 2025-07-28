@@ -74,22 +74,21 @@ router.post('/emergency-hospitals/search', async (req, res) => {
   }
 });
 
-// Protected routes below (require authentication)
-router.use(authenticateToken);
-
-// GET /api/emergency_cases - List all emergency cases, or filter by assigned_to
+// GET /api/emergency_cases - List all emergency cases, or filter by assigned_to (NO AUTH REQUIRED)
 router.get('/', emergencyCaseController.getAllEmergencyCases);
 
-// GET /api/emergency-cases/psychiatrist/:id
+// GET /api/emergency-cases/psychiatrist/:id (NO AUTH REQUIRED)
 router.get('/psychiatrist/:id', emergencyCaseController.getByPsychiatristId);
 
-// POST /api/emergency_cases/admin - Create emergency case with full details (admin route)
+// POST /api/emergency_cases/admin - Create emergency case with full details (NO AUTH REQUIRED)
 router.post('/admin', emergencyCaseController.createEmergencyCase);
 
-// DELETE /api/emergency_cases/:id - Delete an emergency case by ID (protected)
+// DELETE /api/emergency_cases/:id - Delete an emergency case by ID (NO AUTH REQUIRED)
 router.delete('/:id', emergencyCaseController.deleteEmergencyCase);
 
-// PUT /api/emergency_cases/:id - Update an emergency case by ID (protected)
+// PUT /api/emergency_cases/:id - Update an emergency case by ID (NO AUTH REQUIRED)
 router.put('/:id', emergencyCaseController.updateEmergencyCase);
+
+// Note: All emergency case routes are now public (no authentication required for admin operations)
 
 module.exports = router; 

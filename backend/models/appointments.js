@@ -13,14 +13,24 @@ function toMySQLDatetime(str) {
   return str;
 }
 
-exports.createAppointment = async ({ role, user_public_id, contact, assigned_to, status, date_time, created_by, counselor_id }) => {
-  // Fetch the latest full_name from user_public
-  const [userRows] = await db.query('SELECT full_name FROM user_public WHERE id = ?', [user_public_id]);
-  const name_patient = userRows[0]?.full_name || '';
+exports.createAppointment = async ({ role, name_patient, user_public_id, contact, assigned_to, status, date_time, created_by, counselor_id }) => {
+  // Use provided name_patient directly, or fetch from user_public if user_public_id exists and name_patient is not provided
+  let finalNamePatient = name_patient;
+  
+  // Only fetch from user_public if name_patient is not provided but user_public_id exists
+  if (!finalNamePatient && user_public_id) {
+    const [userRows] = await db.query('SELECT full_name FROM user_public WHERE id = ?', [user_public_id]);
+    finalNamePatient = userRows[0]?.full_name || '';
+  }
+  
+  // Ensure we have a name_patient value
+  if (!finalNamePatient) {
+    throw new Error('name_patient is required');
+  }
 
   const [result] = await db.query(
     'INSERT INTO appointments (role, name_patient, user_public_id, contact, assigned_to, counselor_id, status, date_time, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
-    [role, name_patient, user_public_id, contact, assigned_to, counselor_id, status, date_time, created_by]
+    [role, finalNamePatient, user_public_id, contact, assigned_to, counselor_id, status, date_time, created_by]
   );
   return result.insertId;
 };
@@ -28,7 +38,7 @@ exports.createAppointment = async ({ role, user_public_id, contact, assigned_to,
 exports.getAppointments = async (filter = {}) => {
   let sql = `SELECT a.id, a.role, a.user_public_id, a.contact, a.assigned_to, a.counselor_id, a.created_by, a.status, 
              DATE_FORMAT(a.date_time, '%Y-%m-%d %H:%i:%s') as date_time, a.created_at,
-             u.full_name as name_patient, u.email as patient_email, u.phone_number as patient_phone
+             COALESCE(a.name_patient, u.full_name) as name_patient, u.email as patient_email, u.phone_number as patient_phone
              FROM appointments a
              LEFT JOIN user_public u ON a.user_public_id = u.id`;
   const params = [];
@@ -77,7 +87,7 @@ exports.getAppointments = async (filter = {}) => {
 exports.getAppointmentsByAssignee = async (assigned_to) => {
   const sql = `SELECT a.id, a.role, a.user_public_id, a.contact, a.assigned_to, a.status, 
                DATE_FORMAT(a.date_time, '%Y-%m-%d %H:%i:%s') as date_time, a.created_at, 
-               u.full_name as name_patient, u.email as patient_email, u.phone_number as patient_phone
+               COALESCE(a.name_patient, u.full_name) as name_patient, u.email as patient_email, u.phone_number as patient_phone
                FROM appointments a 
                LEFT JOIN user_public u ON a.user_public_id = u.id 
                WHERE a.assigned_to = ? ORDER BY a.date_time DESC`;
@@ -88,7 +98,7 @@ exports.getAppointmentsByAssignee = async (assigned_to) => {
 exports.getAppointmentsByUserId = async (user_public_id) => {
   const sql = `SELECT a.id, a.role, a.user_public_id, a.contact, a.assigned_to, a.status, 
                DATE_FORMAT(a.date_time, '%Y-%m-%d %H:%i:%s') as date_time, a.created_at, 
-               u.full_name as name_patient, u.email as patient_email, u.phone_number as patient_phone
+               COALESCE(a.name_patient, u.full_name) as name_patient, u.email as patient_email, u.phone_number as patient_phone
                FROM appointments a 
                LEFT JOIN user_public u ON a.user_public_id = u.id 
                WHERE a.user_public_id = ? 

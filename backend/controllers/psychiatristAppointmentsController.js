@@ -19,22 +19,34 @@ exports.createPsychiatristAppointment = async (req, res) => {
         const { psychiatrist_id } = req.params;
         const { name_patient, contact, assigned_to, status, date_time, created_by } = req.body;
         
-        console.log('Creating psychiatrist appointment:', {
-            psychiatrist_id,
-            name_patient,
-            contact,
-            assigned_to,
-            status,
-            date_time,
-            created_by
-        });
+        console.log('🎯 Creating psychiatrist appointment with:');
+        console.log('  - psychiatrist_id:', psychiatrist_id, '(type:', typeof psychiatrist_id, ')');
+        console.log('  - name_patient:', name_patient, '(type:', typeof name_patient, ')');
+        console.log('  - contact:', contact, '(type:', typeof contact, ')');
+        console.log('  - assigned_to:', assigned_to, '(type:', typeof assigned_to, ')');
+        console.log('  - status:', status, '(type:', typeof status, ')');
+        console.log('  - date_time:', date_time, '(type:', typeof date_time, ')');
+        console.log('  - created_by:', created_by, '(type:', typeof created_by, ')');
+        console.log('📋 Full req.body:', req.body);
         
-        if (!name_patient || !contact || !assigned_to || !status || !date_time || !created_by) {
+        // Detailed field validation with specific error messages
+        const missingFields = [];
+        if (!name_patient || name_patient.trim() === '') missingFields.push('name_patient');
+        if (!contact || contact.trim() === '') missingFields.push('contact');
+        if (!assigned_to || assigned_to.trim() === '') missingFields.push('assigned_to');
+        if (!status || status.trim() === '') missingFields.push('status');
+        if (!date_time || date_time.trim() === '') missingFields.push('date_time');
+        if (!created_by || created_by.trim() === '') missingFields.push('created_by');
+        
+        if (missingFields.length > 0) {
+            console.log('❌ Missing fields:', missingFields);
             return res.status(400).json({ 
                 success: false, 
-                message: 'Missing required fields: name_patient, contact, assigned_to, status, date_time, created_by' 
+                message: `Missing required fields: ${missingFields.join(', ')}` 
             });
         }
+        
+        console.log('✅ All required fields validated');
         
         // Check for conflicts
         const hasConflict = await psychiatristAppointmentsModel.checkPsychiatristAppointmentConflict(
@@ -43,13 +55,16 @@ exports.createPsychiatristAppointment = async (req, res) => {
         );
         
         if (hasConflict) {
+            console.log('⚠️ Time slot conflict detected');
             return res.status(409).json({ 
                 success: false, 
                 message: 'Time slot conflict: Another appointment exists at this time' 
             });
         }
         
-        const appointmentId = await psychiatristAppointmentsModel.createPsychiatristAppointment({
+        console.log('✅ No time conflicts found');
+        
+        const appointmentData = {
             name_patient,
             contact,
             assigned_to,
@@ -57,16 +72,21 @@ exports.createPsychiatristAppointment = async (req, res) => {
             status,
             date_time,
             created_by
-        });
+        };
         
-        console.log('Psychiatrist appointment created successfully with ID:', appointmentId);
+        console.log('📤 Calling model with data:', appointmentData);
+        
+        const appointmentId = await psychiatristAppointmentsModel.createPsychiatristAppointment(appointmentData);
+        
+        console.log('🎉 Psychiatrist appointment created successfully with ID:', appointmentId);
         res.status(201).json({ 
             success: true, 
             message: 'Psychiatrist appointment created successfully',
             id: appointmentId
         });
     } catch (err) {
-        console.error('Error creating psychiatrist appointment:', err);
+        console.error('💥 Error creating psychiatrist appointment:', err);
+        console.error('📍 Error stack:', err.stack);
         res.status(500).json({ 
             success: false, 
             message: 'Failed to create psychiatrist appointment: ' + err.message 
@@ -79,16 +99,17 @@ exports.updatePsychiatristAppointment = async (req, res) => {
         const { psychiatrist_id, id } = req.params;
         let { name_patient, contact, assigned_to, status, date_time, user_public_id } = req.body;
         
-        // Fetch current appointment if name_patient or user_public_id is missing or blank
+        // Fetch current appointment if name_patient is missing or blank
         let currentAppointment = null;
-        if (!name_patient || name_patient.trim() === "" || !user_public_id) {
+        if (!name_patient || name_patient.trim() === "") {
             const [rows] = await db.query('SELECT name_patient, user_public_id FROM psychiatrist_appointments WHERE id = ?', [id]);
             if (rows.length > 0) {
                 currentAppointment = rows[0];
                 if (!name_patient || name_patient.trim() === "") {
                     name_patient = currentAppointment.name_patient;
                 }
-                if (!user_public_id) {
+                // Keep the original user_public_id if not provided in update (allow NULL)
+                if (user_public_id === undefined) {
                     user_public_id = currentAppointment.user_public_id;
                 }
             } else {
@@ -107,10 +128,10 @@ exports.updatePsychiatristAppointment = async (req, res) => {
             user_public_id
         });
         
-        if (!name_patient || !contact || !assigned_to || !status || !date_time || !user_public_id) {
+        if (!name_patient || !contact || !assigned_to || !status || !date_time) {
             return res.status(400).json({ 
                 success: false, 
-                message: 'Missing required fields: name_patient, contact, assigned_to, status, date_time, user_public_id' 
+                message: 'Missing required fields: name_patient, contact, assigned_to, status, date_time' 
             });
         }
         
