@@ -5,7 +5,7 @@ const createNotificationsTable = async () => {
   const createTableQuery = `
     CREATE TABLE IF NOT EXISTS notifications (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      user_type ENUM('admin', 'counselor', 'psychiatrist') NOT NULL,
+      user_type ENUM('admin', 'counselor', 'psychiatrist', 'user_public') NOT NULL,
       user_id INT NULL,
       title VARCHAR(255) NOT NULL,
       message TEXT,
@@ -44,6 +44,13 @@ const createNotificationsTable = async () => {
         title: 'Test notification for psychiatrist',
         message: 'This is a test notification for psychiatrist dashboard',
         data: JSON.stringify({ test: true, redirect_url: '/psychiatryst/emergency-cases' })
+      },
+      {
+        user_type: 'user_public',
+        user_id: 1,
+        title: 'Test notification for user_public',
+        message: 'This is a test notification for user_public dashboard',
+        data: JSON.stringify({ test: true, redirect_url: '/user-public/appointments' })
       }
     ];
     

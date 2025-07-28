@@ -89,6 +89,14 @@ export default function NotificationDrawer({ userType = 'admin', userId = null }
   // Fetch notifications
   const fetchNotifications = async () => {
     try {
+      // Validate userType before making API call
+      const validUserTypes = ['admin', 'counselor', 'psychiatrist', 'user_public'];
+      if (!validUserTypes.includes(userType)) {
+        console.error('❌ Invalid userType:', userType, 'Valid types:', validUserTypes);
+        setNotifications([]);
+        return;
+      }
+      
       setLoading(true);
       const params = new URLSearchParams({ user_type: userType });
       if (effectiveUserId) params.append('user_id', effectiveUserId.toString());
@@ -140,6 +148,14 @@ export default function NotificationDrawer({ userType = 'admin', userId = null }
   // Fetch unread count
   const fetchUnreadCount = async () => {
     try {
+      // Validate userType before making API call
+      const validUserTypes = ['admin', 'counselor', 'psychiatrist', 'user_public'];
+      if (!validUserTypes.includes(userType)) {
+        console.error('❌ Invalid userType for unread count:', userType, 'Valid types:', validUserTypes);
+        setUnreadCount(0);
+        return;
+      }
+      
       const params = new URLSearchParams({ user_type: userType });
       if (effectiveUserId) params.append('user_id', effectiveUserId.toString());
       
