@@ -99,6 +99,14 @@ exports.updatePsychiatristAppointment = async (req, res) => {
         const { psychiatrist_id, id } = req.params;
         let { name_patient, contact, assigned_to, status, date_time, user_public_id } = req.body;
         
+        console.log('🔍 updatePsychiatristAppointment called with:', {
+            psychiatrist_id,
+            id,
+            name_patient,
+            status,
+            user_public_id
+        });
+        
         // Fetch current appointment if name_patient is missing or blank
         let currentAppointment = null;
         if (!name_patient || name_patient.trim() === "") {
@@ -154,6 +162,15 @@ exports.updatePsychiatristAppointment = async (req, res) => {
         const previousStatus = existingAppointment ? existingAppointment.status : null;
         const statusChanged = previousStatus !== status;
         
+        console.log('🔍 Psychiatrist status change detection:', {
+          appointmentId: id,
+          previousStatus,
+          newStatus: status,
+          statusChanged,
+          user_public_id,
+          willSendNotification: statusChanged && user_public_id && (status === 'Accepted' || status === 'Rejected')
+        });
+        
         const success = await psychiatristAppointmentsModel.updatePsychiatristAppointment(id, {
             name_patient,
             user_public_id,
@@ -169,6 +186,7 @@ exports.updatePsychiatristAppointment = async (req, res) => {
             
             // Send notification and email to user_public if status changed to Accepted or Rejected
             if (statusChanged && user_public_id && (status === 'Accepted' || status === 'Rejected')) {
+                console.log('✅ Triggering email and notification for user_public (psychiatrist):', user_public_id);
                 try {
                     // Get user_public details
                     const publicUsersModel = require('../models/publicUser');

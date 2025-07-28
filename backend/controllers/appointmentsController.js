@@ -291,6 +291,16 @@ exports.updateAppointment = async (req, res) => {
     const { id } = req.params;
     let { role, name_patient, contact, assigned_to, status, date_time, user_public_id, counselor_id } = req.body;
     const user = req.user;
+    
+    console.log('🔍 updateAppointment called with:', {
+      id,
+      role,
+      name_patient,
+      status,
+      user_public_id,
+      counselor_id,
+      user: user ? { role: user.role, email: user.email } : null
+    });
     // Fetch the appointment to check ownership and get current values
     const [appointment] = await appointmentsModel.getAppointments({ id });
     if (!appointment) {
@@ -307,6 +317,15 @@ exports.updateAppointment = async (req, res) => {
     const previousStatus = appointment.status;
     const statusChanged = previousStatus !== status;
     
+    console.log('🔍 Status change detection:', {
+      appointmentId: id,
+      previousStatus,
+      newStatus: status,
+      statusChanged,
+      user_public_id,
+      willSendNotification: statusChanged && user_public_id && (status === 'Accepted' || status === 'Rejected')
+    });
+    
     const success = await appointmentsModel.updateAppointment(id, { role, name_patient, user_public_id, contact, assigned_to, status, date_time, created_by: appointment.created_by, counselor_id });
     if (!success) {
       return res.status(404).json({ success: false, message: 'Appointment not found.' });
@@ -314,6 +333,7 @@ exports.updateAppointment = async (req, res) => {
     
     // Send notification and email to user_public if status changed to Accepted or Rejected
     if (statusChanged && user_public_id && (status === 'Accepted' || status === 'Rejected')) {
+      console.log('✅ Triggering email and notification for user_public:', user_public_id);
       try {
         // Get user_public details
         const publicUsersModel = require('../models/publicUser');
@@ -589,6 +609,14 @@ exports.createPublicAppointment = async (req, res) => {
       
       const id = await psychiatristAppointmentsModel.createPsychiatristAppointment(appointmentData);
       
+      console.log('🔍 Psychiatrist appointment creation debug:', {
+        psychiatrist_id: psychiatrist.id,
+        psychiatrist_found: !!psychiatrist,
+        psychiatrist_email: psychiatrist?.email,
+        psychiatrist_name: psychiatrist?.full_name,
+        will_send_notification: !!(psychiatrist && psychiatrist.email)
+      });
+      
       // Send email and notification to psychiatrist
       try {
         const transporter = require('../utils/email');
@@ -681,22 +709,33 @@ exports.createPublicAppointment = async (req, res) => {
           console.log('✅ Email sent to psychiatrist:', psychiatrist.email);
           
           // Create notification for psychiatrist
-          await notificationsModel.createNotification({
+          console.log('🔍 About to create notification for psychiatrist:', {
             user_type: 'psychiatrist',
             user_id: psychiatrist.id,
             title: 'New appointment scheduled',
-            message: `New appointment with ${name_patient} on ${formattedDate} at ${formattedTime}`,
-            data: {
-              appointment_id: id,
-              patient_name: name_patient,
-              appointment_date: formattedDate,
-              appointment_time: formattedTime,
-              appointment_type: 'Psychiatrist Consultation',
-              redirect_url: '/psychiatryst/appointments'
-            }
+            message: `New appointment with ${name_patient} on ${formattedDate} at ${formattedTime}`
           });
           
-          console.log('✅ Notification created for psychiatrist:', psychiatrist.full_name);
+          try {
+            const notificationId = await notificationsModel.createNotification({
+              user_type: 'psychiatrist',
+              user_id: psychiatrist.id,
+              title: 'New appointment scheduled',
+              message: `New appointment with ${name_patient} on ${formattedDate} at ${formattedTime}`,
+              data: {
+                appointment_id: id,
+                patient_name: name_patient,
+                appointment_date: formattedDate,
+                appointment_time: formattedTime,
+                appointment_type: 'Psychiatrist Consultation',
+                redirect_url: '/psychiatryst/appointments'
+              }
+            });
+            
+            console.log('✅ Notification created for psychiatrist:', psychiatrist.full_name, 'with ID:', notificationId);
+          } catch (notificationError) {
+            console.error('❌ Error creating notification for psychiatrist:', notificationError);
+          }
         }
       } catch (emailError) {
         console.error('❌ Error sending appointment email/notification:', emailError);
@@ -744,6 +783,14 @@ exports.createPublicAppointment = async (req, res) => {
       if (!counselor) {
         counselor = await counselorsModel.getCounselorById(counselor_id);
       }
+      
+      console.log('🔍 Counselor appointment creation debug:', {
+        counselor_id,
+        counselor_found: !!counselor,
+        counselor_email: counselor?.email,
+        counselor_name: counselor?.full_name,
+        will_send_notification: !!(counselor && counselor.email)
+      });
       
       // Send email and notification to counselor
       try {
@@ -837,22 +884,33 @@ exports.createPublicAppointment = async (req, res) => {
           console.log('✅ Email sent to counselor:', counselor.email);
           
           // Create notification for counselor
-          await notificationsModel.createNotification({
+          console.log('🔍 About to create notification for counselor:', {
             user_type: 'counselor',
             user_id: counselor.id,
             title: 'New appointment scheduled',
-            message: `New appointment with ${name_patient} on ${formattedDate} at ${formattedTime}`,
-            data: {
-              appointment_id: id,
-              patient_name: name_patient,
-              appointment_date: formattedDate,
-              appointment_time: formattedTime,
-              appointment_type: 'Counseling Session',
-              redirect_url: '/counselor/appointments'
-            }
+            message: `New appointment with ${name_patient} on ${formattedDate} at ${formattedTime}`
           });
           
-          console.log('✅ Notification created for counselor:', counselor.full_name);
+          try {
+            const notificationId = await notificationsModel.createNotification({
+              user_type: 'counselor',
+              user_id: counselor.id,
+              title: 'New appointment scheduled',
+              message: `New appointment with ${name_patient} on ${formattedDate} at ${formattedTime}`,
+              data: {
+                appointment_id: id,
+                patient_name: name_patient,
+                appointment_date: formattedDate,
+                appointment_time: formattedTime,
+                appointment_type: 'Counseling Session',
+                redirect_url: '/counselor/appointments'
+              }
+            });
+            
+            console.log('✅ Notification created for counselor:', counselor.full_name, 'with ID:', notificationId);
+          } catch (notificationError) {
+            console.error('❌ Error creating notification for counselor:', notificationError);
+          }
         }
       } catch (emailError) {
         console.error('❌ Error sending appointment email/notification:', emailError);

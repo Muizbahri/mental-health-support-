@@ -2,8 +2,16 @@ const db = require('../config/db');
 
 // Create notifications table if it doesn't exist
 const createNotificationsTable = async () => {
+  // First, drop the table if it exists to ensure correct ENUM values
+  try {
+    await db.query('DROP TABLE IF EXISTS notifications');
+    console.log('✅ Dropped existing notifications table');
+  } catch (error) {
+    console.log('ℹ️ No existing table to drop');
+  }
+  
   const createTableQuery = `
-    CREATE TABLE IF NOT EXISTS notifications (
+    CREATE TABLE notifications (
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_type ENUM('admin', 'counselor', 'psychiatrist', 'user_public') NOT NULL,
       user_id INT NULL,
