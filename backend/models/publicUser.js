@@ -124,4 +124,14 @@ exports.deletePublicUser = async (id) => {
 exports.updateProfileImage = async (id, profileImage) => {
   const [result] = await db.query('UPDATE user_public SET profile_image = ? WHERE id = ?', [profileImage, id]);
   return result.affectedRows > 0;
+};
+
+exports.updatePassword = async (id, password) => {
+  try {
+    const [result] = await db.query('UPDATE user_public SET password = ? WHERE id = ?', [password, id]);
+    return result.affectedRows > 0;
+  } catch (error) {
+    console.error("Model error updating password:", error);
+    throw error;
+  }
 }; 

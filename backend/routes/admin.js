@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 // Signup
@@ -12,10 +11,9 @@ router.post('/signup', async (req, res) => {
     if (results && results.length > 0) {
       return res.status(400).json({ success: false, message: 'Email already exists' });
     }
-    const hashedPassword = await bcrypt.hash(password, 10);
     const result = await db.query(
       'INSERT INTO admin (full_name, ic_number, age, email, secret_code, phone_number, password) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [fullName, icNumber, age, email, secretCode, phone, hashedPassword]
+      [fullName, icNumber, age, email, secretCode, phone, password]
     );
     // Create JWT
     const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key';
@@ -41,8 +39,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid email or password' });
     }
     const admin = results[0];
-    const match = await bcrypt.compare(password, admin.password);
-    if (!match) {
+    if (password !== admin.password) {
       return res.status(400).json({ success: false, message: 'Invalid email or password' });
     }
     const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key';
@@ -113,15 +110,13 @@ router.put('/profile', verifyAdminToken, async (req, res) => {
       }
 
       // Verify current password
-      const match = await bcrypt.compare(currentPassword, adminData[0].password);
-      if (!match) {
+      if (currentPassword !== adminData[0].password) {
         return res.status(400).json({ success: false, message: 'Current password is incorrect' });
       }
 
-      // Hash new password
-      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+      // Store new password as plain text
       updateQuery = 'UPDATE admin SET full_name = ?, ic_number = ?, age = ?, email = ?, phone_number = ?, password = ? WHERE id = ?';
-      updateParams = [fullName, icNumber, age, email, phone, hashedNewPassword, adminId];
+      updateParams = [fullName, icNumber, age, email, phone, newPassword, adminId];
     }
 
     // Update admin profile

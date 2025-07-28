@@ -28,6 +28,7 @@ const emailTestRoutes = require('./routes/emailTest');
 const addCounselorRoute = require('./routes/addCounselor');
 const psychiatristAppointmentsRoutes = require('./routes/psychiatrist_appointments');
 const notificationsRoutes = require('./routes/notifications');
+const resetRoutes = require('./routes/resetRoutes');
 
 // Middleware
 app.use(cors());
@@ -93,6 +94,7 @@ app.use('/api/email', emailRoutes);
 app.use('/api', emailTestRoutes);
 app.use('/api', addCounselorRoute);
 app.use('/api/psychiatrist-appointments', psychiatristAppointmentsRoutes);
+app.use('/api/auth', resetRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

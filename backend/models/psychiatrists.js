@@ -82,6 +82,16 @@ exports.updateProfileImage = async (id, profileImage) => {
   return result.affectedRows > 0;
 };
 
+exports.updatePassword = async (id, password) => {
+  try {
+    const [result] = await db.query('UPDATE psychiatrists SET password = ? WHERE id = ?', [password, id]);
+    return result.affectedRows > 0;
+  } catch (error) {
+    console.error("Model error updating password:", error);
+    throw error;
+  }
+};
+
 exports.updateCertificate = async (id, certificate) => {
   const [result] = await db.query('UPDATE psychiatrists SET certificate = ? WHERE id = ?', [certificate, id]);
   return result.affectedRows > 0;
