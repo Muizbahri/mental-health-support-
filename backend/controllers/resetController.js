@@ -33,7 +33,7 @@ async function sendResetEmail(email, resetToken, userType) {
       urlPath = userType;
   }
   
-  const resetUrl = `${process.env.BASE_URL}/${urlPath}/reset-password?token=${resetToken}`;
+  const resetUrl = `${process.env.BASE_URL || 'http://localhost:3000'}/${urlPath}/set-new-password?token=${resetToken}`;
   
   const mailOptions = {
     from: '"Mental Health System" <no-reply@mentalhealth.com>',
