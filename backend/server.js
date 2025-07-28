@@ -21,8 +21,8 @@ const psychiatristsRoutes = require('./routes/psychiatrists');
 const publicUsersRoutes = require('./routes/publicUsers');
 const ngoRoutes = require('./routes/ngo');
 const referralRequestsRouter = require('./routes/referral_requests');
-const scrapeActivitiesRoutes = require('./routes/scrape-activities');
-const activitiesRoutes = require('./routes/activities');
+
+
 const emailRoutes = require('./routes/emailRoutes');
 const emailTestRoutes = require('./routes/emailTest');
 const addCounselorRoute = require('./routes/addCounselor');
@@ -85,8 +85,8 @@ app.use('/api/add-public', (req, res, next) => {
 
 app.use('/api', ngoRoutes);
 app.use('/api', referralRequestsRouter);
-app.use('/api/activities', activitiesRoutes);
-app.use('/api/scrape-activities', scrapeActivitiesRoutes);
+
+
 app.use('/api/email', emailRoutes);
 app.use('/api', emailTestRoutes);
 app.use('/api', addCounselorRoute);

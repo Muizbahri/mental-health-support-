@@ -20,6 +20,9 @@ router.post('/', feedbacksController.createFeedback);
 // Update feedback by id
 router.put('/:id', feedbacksController.updateFeedback);
 
+// Admin responds to feedback
+router.put('/respond/:id', feedbacksController.respondToFeedback);
+
 // Delete feedback by id (admin only)
 router.delete('/:id', feedbacksController.deleteFeedback);
 

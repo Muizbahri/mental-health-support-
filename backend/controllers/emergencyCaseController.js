@@ -5,6 +5,8 @@ const psychiatristsModel = require('../models/psychiatrists');
 exports.createEmergencyCase = async (req, res) => {
   try {
     const { name_patient, ic_number, date_time, status, assigned_to, role, counselor_id, psychiatrist_id } = req.body;
+    console.log('Create emergency case - received date_time:', date_time, 'Type:', typeof date_time);
+    
     if (!name_patient || !ic_number || !date_time || !status || !assigned_to || !role) {
       return res.status(400).json({ success: false, message: 'All fields are required.' });
     }
@@ -91,6 +93,13 @@ exports.getAllEmergencyCases = async (req, res) => {
     // If no filters are specified, get all cases (for admin view)
     const cases = await emergencyCaseModel.getAllEmergencyCases(filter);
     console.log(`Fetched ${cases.length} emergency cases with filter:`, filter);
+    
+    // Debug: Log the date_time format of the first case
+    if (cases.length > 0) {
+      console.log("Sample case date_time from DB:", cases[0].date_time);
+      console.log("Sample date_time type:", typeof cases[0].date_time);
+    }
+    
     res.json({ success: true, data: cases });
   } catch (error) {
     console.error('Error fetching emergency cases:', error);
@@ -115,6 +124,7 @@ exports.updateEmergencyCase = async (req, res) => {
     const { name_patient, ic_number, date_time, status, assigned_to, role, counselor_id, psychiatrist_id } = req.body;
     
     console.log('Update request received for case ID:', id);
+    console.log('Update emergency case - received date_time:', date_time, 'Type:', typeof date_time);
     console.log('Request body:', req.body);
     
     if (!name_patient || !ic_number || !date_time || !status || !assigned_to || !role) {

@@ -52,6 +52,33 @@ function formatDisplayDateTime(mysqlDateTime) {
   return dt.toLocaleString();
 }
 
+function formatDisplayDate(mysqlDateTime) {
+  // mysqlDateTime: 'YYYY-MM-DD HH:mm:ss' or ISO string
+  if (!mysqlDateTime) return '';
+  const dt = new Date(mysqlDateTime.replace(' ', 'T'));
+  if (isNaN(dt.getTime())) return '';
+  return dt.toLocaleDateString('en-GB'); // DD/MM/YYYY format
+}
+
+function formatDisplayTime(mysqlDateTime) {
+  // mysqlDateTime: 'YYYY-MM-DD HH:mm:ss' or ISO string
+  if (!mysqlDateTime) return '';
+  const dt = new Date(mysqlDateTime.replace(' ', 'T'));
+  if (isNaN(dt.getTime())) return '';
+  return dt.toLocaleTimeString('en-GB', { hour12: false }); // HH:MM:SS format
+}
+
+function getTodayMinDateTime() {
+  // Get today's date and time in YYYY-MM-DDTHH:MM format for datetime-local input
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 function NewAppointmentModal({ isOpen, onClose, onAdd, loading }) {
   const [formData, setFormData] = useState({
     role: "",
@@ -202,6 +229,7 @@ function NewAppointmentModal({ isOpen, onClose, onAdd, loading }) {
               required
               value={formData.date_time}
               onChange={(e) => setFormData({ ...formData, date_time: e.target.value })}
+              min={getTodayMinDateTime()}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
             />
           </div>
@@ -330,7 +358,8 @@ function EditAppointmentModal({ open, appointment, loading, error, onClose, onSa
               required
               value={formData.role}
               onChange={handleRoleChange}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+              disabled={true}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-gray-100 cursor-not-allowed"
             >
               <option value="">Select a role</option>
               <option value="Psychiatrist">Psychiatrist</option>
@@ -396,6 +425,7 @@ function EditAppointmentModal({ open, appointment, loading, error, onClose, onSa
               required
               value={formData.date_time}
               onChange={handleChange}
+              min={getTodayMinDateTime()}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
             />
           </div>
@@ -621,7 +651,8 @@ export default function ManageAppointmentsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-neutral-50">
-                  <th className="py-2 px-3 text-left font-semibold text-gray-800">Date/Time</th>
+                  <th className="py-2 px-3 text-left font-semibold text-gray-800">Date</th>
+                  <th className="py-2 px-3 text-left font-semibold text-gray-800">Time</th>
                   <th className="py-2 px-3 text-left font-semibold text-gray-800">Name (Patient)</th>
                   <th className="py-2 px-3 text-left font-semibold text-gray-800">Contact</th>
                   <th className="py-2 px-3 text-left font-semibold text-gray-800">Assigned To</th>
@@ -632,7 +663,7 @@ export default function ManageAppointmentsPage() {
               <tbody>
                 {fetching ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-8">
+                    <td colSpan={7} className="text-center py-8">
                       <div className="flex flex-col items-center text-gray-500">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
                         <p className="text-sm font-medium">Loading psychiatrist appointments...</p>
@@ -641,7 +672,7 @@ export default function ManageAppointmentsPage() {
                   </tr>
                 ) : psychiatristAppointments.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-8">
+                    <td colSpan={7} className="text-center py-8">
                       <div className="flex flex-col items-center text-gray-500">
                         <Calendar size={48} className="mb-2 text-gray-400" />
                         <p className="text-sm font-medium">No psychiatrist appointments found</p>
@@ -651,7 +682,8 @@ export default function ManageAppointmentsPage() {
                   </tr>
                 ) : psychiatristAppointments.map(row => (
                   <tr key={`${row.id}-${row.role}`} className="border-b last:border-b-0 hover:bg-gray-50 transition">
-                    <td className="py-2 px-3 text-gray-800">{formatDisplayDateTime(row.date_time)}</td>
+                    <td className="py-2 px-3 text-gray-800">{formatDisplayDate(row.date_time)}</td>
+                    <td className="py-2 px-3 text-gray-800">{formatDisplayTime(row.date_time)}</td>
                     <td className="py-2 px-3 text-gray-800">{row.name_patient || '-'}</td>
                     <td className="py-2 px-3 text-gray-800">{row.contact}</td>
                     <td className="py-2 px-3 text-gray-800">{row.assigned_to}</td>
@@ -701,7 +733,8 @@ export default function ManageAppointmentsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-neutral-50">
-                  <th className="py-2 px-3 text-left font-semibold text-gray-800">Date/Time</th>
+                  <th className="py-2 px-3 text-left font-semibold text-gray-800">Date</th>
+                  <th className="py-2 px-3 text-left font-semibold text-gray-800">Time</th>
                   <th className="py-2 px-3 text-left font-semibold text-gray-800">Name (Patient)</th>
                   <th className="py-2 px-3 text-left font-semibold text-gray-800">Contact</th>
                   <th className="py-2 px-3 text-left font-semibold text-gray-800">Assigned To</th>
@@ -712,7 +745,7 @@ export default function ManageAppointmentsPage() {
               <tbody>
                 {fetching ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-8">
+                    <td colSpan={7} className="text-center py-8">
                       <div className="flex flex-col items-center text-gray-500">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
                         <p className="text-sm font-medium">Loading counselor appointments...</p>
@@ -721,7 +754,7 @@ export default function ManageAppointmentsPage() {
                   </tr>
                 ) : counselorAppointments.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-8">
+                    <td colSpan={7} className="text-center py-8">
                       <div className="flex flex-col items-center text-gray-500">
                         <Calendar size={48} className="mb-2 text-gray-400" />
                         <p className="text-sm font-medium">No counselor appointments found</p>
@@ -731,7 +764,8 @@ export default function ManageAppointmentsPage() {
                   </tr>
                 ) : counselorAppointments.map(row => (
                   <tr key={`${row.id}-${row.role}`} className="border-b last:border-b-0 hover:bg-gray-50 transition">
-                    <td className="py-2 px-3 text-gray-800">{formatDisplayDateTime(row.date_time)}</td>
+                    <td className="py-2 px-3 text-gray-800">{formatDisplayDate(row.date_time)}</td>
+                    <td className="py-2 px-3 text-gray-800">{formatDisplayTime(row.date_time)}</td>
                     <td className="py-2 px-3 text-gray-800">{row.name_patient || '-'}</td>
                     <td className="py-2 px-3 text-gray-800">{row.contact}</td>
                     <td className="py-2 px-3 text-gray-800">{row.assigned_to}</td>

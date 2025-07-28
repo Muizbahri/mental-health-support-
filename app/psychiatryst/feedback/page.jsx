@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PsychiatristSidebar from "../Sidebar";
-import { MessageCircle, Trash2 } from "lucide-react";
+import { MessageCircle, Trash2, CheckCircle } from "lucide-react";
 import useAutoRefresh from '../../../hooks/useAutoRefresh';
 
 const FEEDBACK_TYPES = [
@@ -335,8 +335,8 @@ export default function PsychiatristFeedbackPage() {
                 <li key={fb.id} className="border rounded-xl p-4 bg-teal-50 relative">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs font-semibold px-2 py-0.5 rounded bg-teal-200 text-teal-800">{fb.type_of_feedback}</span>
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded ml-2 ${getStatusColor('Under Review')}`}>
-                      Under Review
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded ml-2 ${fb.admin_response ? getStatusColor('resolved') : getStatusColor('Under Review')}`}>
+                      {fb.admin_response ? 'Responded' : 'Under Review'}
                     </span>
                     <span className="ml-auto text-xs text-gray-400">
                       {new Date(fb.feedback_date).toLocaleDateString()}
@@ -354,7 +354,21 @@ export default function PsychiatristFeedbackPage() {
                       )}
                     </button>
                   </div>
-                  <div className="text-gray-800 text-sm">"{fb.feedback}"</div>
+                  <div className="text-gray-800 text-sm mb-2">"{fb.feedback}"</div>
+                  
+                  {/* Admin Response Section */}
+                  {fb.admin_response && (
+                    <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle className="text-green-600" size={16} />
+                        <span className="font-semibold text-green-800 text-sm">Admin Response</span>
+                        <span className="ml-auto text-xs text-green-600">
+                          {fb.responded_at ? new Date(fb.responded_at).toLocaleDateString() : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="text-green-800 text-sm">"{fb.admin_response}"</div>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

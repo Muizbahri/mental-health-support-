@@ -1,5 +1,5 @@
 "use client";
-import { MessageCircle, Menu, X, Trash2 } from "lucide-react";
+import { MessageCircle, Menu, X, Trash2, CheckCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import Sidebar from "../Sidebar";
 import useAutoRefresh from '../../../hooks/useAutoRefresh';
@@ -385,14 +385,30 @@ export default function FeedbackPage() {
           ) : userFeedbacks.length > 0 ? (
             <div className="flex flex-col gap-4">
               {userFeedbacks.map((fb) => (
-                <div key={fb.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between">
-                  <div className="flex-1">
-                    <div className={`font-semibold mb-1 ${getTypeColor(fb.type_of_feedback)}`}>{fb.type_of_feedback}</div>
-                    <div className="text-gray-700 text-sm mb-2">"{fb.feedback}"</div>
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor('Under Review')}`}>
-                      Under Review
-                    </span>
-                  </div>
+                <div key={fb.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between">
+                    <div className="flex-1">
+                      <div className={`font-semibold mb-1 ${getTypeColor(fb.type_of_feedback)}`}>{fb.type_of_feedback}</div>
+                      <div className="text-gray-700 text-sm mb-2">"{fb.feedback}"</div>
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${fb.admin_response ? getStatusColor('resolved') : getStatusColor('Under Review')}`}>
+                        {fb.admin_response ? 'Responded' : 'Under Review'}
+                      </span>
+                                    </div>
+                  
+                  {/* Admin Response Section */}
+                  {fb.admin_response && (
+                    <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle className="text-green-600" size={16} />
+                        <span className="font-semibold text-green-800 text-sm">Admin Response</span>
+                        <span className="ml-auto text-xs text-green-600">
+                          {fb.responded_at ? new Date(fb.responded_at).toLocaleDateString() : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="text-green-800 text-sm">"{fb.admin_response}"</div>
+                    </div>
+                  )}
+                </div>
                   <div className="flex items-center gap-2 mt-3 md:mt-0 md:ml-4">
                     <span className="text-gray-400 text-xs whitespace-nowrap">
                       {new Date(fb.feedback_date).toLocaleDateString()}

@@ -77,13 +77,15 @@ function NewCaseModal({ isOpen, onClose, onAdd, loading }) {
     onAdd(formData);
   };
 
-  // Helper to get min value for datetime-local (today, 00:00)
+  // Helper to get min value for datetime-local (current date and time)
   const getMinDateTime = () => {
     const now = new Date();
     const yyyy = now.getFullYear();
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const dd = String(now.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}T00:00`;
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
   };
 
   if (!isOpen) return null;
@@ -183,10 +185,22 @@ function EditCaseModal({ isOpen, onClose, onEdit, loading, initialData }) {
 
   useEffect(() => {
     if (initialData) {
+      // Convert MySQL datetime (YYYY-MM-DD HH:mm:ss) to datetime-local format (YYYY-MM-DDTHH:mm)
+      let datetimeLocalValue = '';
+      if (initialData.date_time) {
+        try {
+          // MySQL format: "2025-07-12 11:33:00"
+          // datetime-local format: "2025-07-12T11:33"
+          datetimeLocalValue = initialData.date_time.slice(0, 16).replace(' ', 'T');
+        } catch (error) {
+          console.error('Error converting datetime for edit:', error, initialData.date_time);
+        }
+      }
+      
       setFormData({
         name: initialData.name_patient || '',
         ic: initialData.ic_number || '',
-        date: initialData.date_time ? initialData.date_time.replace(' ', 'T').slice(0, 16) : '',
+        date: datetimeLocalValue,
         status: initialData.status || 'In Progress',
         assigned: initialData.assigned_to || '',
         role: initialData.role || 'Counselor',
@@ -244,13 +258,15 @@ function EditCaseModal({ isOpen, onClose, onEdit, loading, initialData }) {
     onEdit(formData);
   };
 
-  // Helper to get min value for datetime-local (today, 00:00)
+  // Helper to get min value for datetime-local (current date and time)
   const getMinDateTime = () => {
     const now = new Date();
     const yyyy = now.getFullYear();
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const dd = String(now.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}T00:00`;
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
   };
 
   if (!isOpen) return null;
@@ -328,6 +344,120 @@ function formatDisplayDateTime(mysqlDateTime) {
   return `${dt[2]}/${dt[1]}/${dt[0]}, ${dt[3]}:${dt[4]}`;
 }
 
+function formatDisplayDate(dateTimeValue) {
+  if (!dateTimeValue) return '';
+  
+  // First, log the input for debugging
+  console.log('formatDisplayDate input:', dateTimeValue, 'Type:', typeof dateTimeValue);
+  
+  try {
+    let date;
+    
+    // Handle different input formats
+    if (typeof dateTimeValue === 'string') {
+      // Check for malformed data first
+      if (dateTimeValue.includes('T') && dateTimeValue.includes('/')) {
+        console.error('Malformed date detected:', dateTimeValue);
+        return 'Invalid Date';
+      }
+      
+      // Handle MySQL datetime string format (YYYY-MM-DD HH:mm:ss)
+      if (dateTimeValue.includes(' ') && !dateTimeValue.includes('T')) {
+        const dateStr = dateTimeValue.split(' ')[0]; // Get date part: YYYY-MM-DD
+        const [year, month, day] = dateStr.split('-');
+        if (year && month && day && year.length === 4) {
+          return `${day}/${month}/${year}`;
+        }
+      }
+      // Handle ISO string format (2025-08-01T15:25:00.000Z)
+      else if (dateTimeValue.includes('T') && !dateTimeValue.includes('/')) {
+        date = new Date(dateTimeValue);
+      }
+      // Handle other string formats
+      else {
+        date = new Date(dateTimeValue);
+      }
+    } else if (dateTimeValue instanceof Date) {
+      // Handle Date object
+      date = dateTimeValue;
+    } else {
+      // Try to convert to Date
+      date = new Date(dateTimeValue);
+    }
+    
+    // If we have a Date object, format it
+    if (date && !isNaN(date.getTime())) {
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+    
+    console.error('Unable to parse date:', dateTimeValue);
+    return 'Invalid Date';
+  } catch (error) {
+    console.error('Error formatting date:', error, dateTimeValue);
+    return 'Error';
+  }
+}
+
+function formatDisplayTime(dateTimeValue) {
+  if (!dateTimeValue) return '';
+  
+  // First, log the input for debugging
+  console.log('formatDisplayTime input:', dateTimeValue, 'Type:', typeof dateTimeValue);
+  
+  try {
+    let date;
+    
+    // Handle different input formats
+    if (typeof dateTimeValue === 'string') {
+      // Check for malformed data first
+      if (dateTimeValue.includes('T') && dateTimeValue.includes('/')) {
+        console.error('Malformed time detected:', dateTimeValue);
+        return 'Invalid Time';
+      }
+      
+      // Handle MySQL datetime string format (YYYY-MM-DD HH:mm:ss)
+      if (dateTimeValue.includes(' ') && !dateTimeValue.includes('T')) {
+        const timeStr = dateTimeValue.split(' ')[1]; // Get time part: HH:mm:ss
+        if (!timeStr) return '';
+        const [hours, minutes] = timeStr.split(':');
+        if (hours && minutes) {
+          return `${hours}:${minutes}`;
+        }
+      }
+      // Handle ISO string format (2025-08-01T15:25:00.000Z)
+      else if (dateTimeValue.includes('T') && !dateTimeValue.includes('/')) {
+        date = new Date(dateTimeValue);
+      }
+      // Handle other string formats
+      else {
+        date = new Date(dateTimeValue);
+      }
+    } else if (dateTimeValue instanceof Date) {
+      // Handle Date object
+      date = dateTimeValue;
+    } else {
+      // Try to convert to Date
+      date = new Date(dateTimeValue);
+    }
+    
+    // If we have a Date object, format it
+    if (date && !isNaN(date.getTime())) {
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${hours}:${minutes}`;
+    }
+    
+    console.error('Unable to parse time:', dateTimeValue);
+    return 'Invalid Time';
+  } catch (error) {
+    console.error('Error formatting time:', error, dateTimeValue);
+    return 'Error';
+  }
+}
+
 export default function ManageEmergencyPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -374,6 +504,11 @@ export default function ManageEmergencyPage() {
       const data = await res.json();
       console.log("Emergency Cases API response:", data);
       if (data.success && Array.isArray(data.data)) {
+        // Debug: Log the first case to see the date_time format
+        if (data.data.length > 0) {
+          console.log("Sample emergency case date_time:", data.data[0].date_time);
+          console.log("Sample date_time type:", typeof data.data[0].date_time);
+        }
         setCases(data.data);
       } else if (Array.isArray(data)) {
         setCases(data);
@@ -400,8 +535,18 @@ export default function ManageEmergencyPage() {
 
   const handleAddCase = async (formData) => {
     setModalLoading(true);
-    // Convert datetime-local value to 'YYYY-MM-DD HH:mm:ss' string
-    const dateTimeStr = formData.date.replace('T', ' ') + ':00';
+    // Convert datetime-local value (YYYY-MM-DDTHH:mm) to MySQL format (YYYY-MM-DD HH:mm:ss)
+    let dateTimeStr = '';
+    try {
+      if (formData.date) {
+        // datetime-local format: "2025-07-12T11:33"
+        // MySQL format: "2025-07-12 11:33:00"
+        dateTimeStr = formData.date.replace('T', ' ') + ':00';
+      }
+    } catch (error) {
+      console.error('Error converting datetime for save:', error, formData.date);
+      return;
+    }
     
     // Find the assigned professional and get their ID
     let counselor_id = null;
@@ -427,6 +572,13 @@ export default function ManageEmergencyPage() {
       counselor_id,
       psychiatrist_id,
     };
+    
+    console.log('Adding emergency case with datetime:', {
+      original: formData.date,
+      converted: dateTimeStr,
+      sendData: sendData
+    });
+    
     try {
       const res = await fetch('/api/emergency-cases/admin', {
         method: 'POST',
@@ -436,9 +588,12 @@ export default function ManageEmergencyPage() {
         body: JSON.stringify(sendData),
       });
       const data = await res.json();
+      console.log('Add case API response:', data);
       if (data.success) {
         setIsModalOpen(false);
-        fetchCases(); // Refresh cases after add
+        setTimeout(() => {
+          fetchCases(); // Refresh cases after add with slight delay
+        }, 500);
       } else {
         alert(data.message || 'Failed to add emergency case.');
       }
@@ -472,8 +627,18 @@ export default function ManageEmergencyPage() {
 
   const handleEditCaseSubmit = async (formData) => {
     setEditModalLoading(true);
-    // Convert datetime-local value to 'YYYY-MM-DD HH:mm:ss' string
-    const dateTimeStr = formData.date.replace('T', ' ') + ':00';
+    // Convert datetime-local value (YYYY-MM-DDTHH:mm) to MySQL format (YYYY-MM-DD HH:mm:ss)
+    let dateTimeStr = '';
+    try {
+      if (formData.date) {
+        // datetime-local format: "2025-07-12T11:33"
+        // MySQL format: "2025-07-12 11:33:00"
+        dateTimeStr = formData.date.replace('T', ' ') + ':00';
+      }
+    } catch (error) {
+      console.error('Error converting datetime for update:', error, formData.date);
+      return;
+    }
     
     // Find the assigned professional and get their ID
     let counselor_id = null;
@@ -499,6 +664,13 @@ export default function ManageEmergencyPage() {
       counselor_id,
       psychiatrist_id,
     };
+    
+    console.log('Updating emergency case with datetime:', {
+      original: formData.date,
+      converted: dateTimeStr,
+      sendData: sendData
+    });
+    
     try {
       const res = await fetch(`/api/emergency-cases/${editCaseData.id}`, {
         method: 'PUT',
@@ -508,9 +680,12 @@ export default function ManageEmergencyPage() {
         body: JSON.stringify(sendData),
       });
       const data = await res.json();
+      console.log('Update case API response:', data);
       if (data.success) {
         setIsEditModalOpen(false);
-        fetchCases();
+        setTimeout(() => {
+          fetchCases(); // Refresh cases after update with slight delay
+        }, 500);
       } else {
         alert(data.message || 'Failed to update emergency case.');
       }
@@ -608,7 +783,8 @@ export default function ManageEmergencyPage() {
               <tr className="bg-neutral-50">
                 <th className="py-2 px-3 text-left font-semibold text-gray-800">Name (Patient)</th>
                 <th className="py-2 px-3 text-left font-semibold text-gray-800">IC Number</th>
-                <th className="py-2 px-3 text-left font-semibold text-gray-800">Date/Time</th>
+                <th className="py-2 px-3 text-left font-semibold text-gray-800">Date</th>
+                <th className="py-2 px-3 text-left font-semibold text-gray-800">Time</th>
                 <th className="py-2 px-3 text-left font-semibold text-gray-800">Status</th>
                 <th className="py-2 px-3 text-left font-semibold text-gray-800">Assigned To</th>
                 <th className="py-2 px-3 text-left font-semibold text-gray-800">Role</th>
@@ -617,12 +793,13 @@ export default function ManageEmergencyPage() {
             </thead>
             <tbody>
               {filteredCases.length === 0 ? (
-                <tr><td colSpan={7} className="text-center text-gray-400 py-4">No cases found</td></tr>
+                <tr><td colSpan={8} className="text-center text-gray-400 py-4">No cases found</td></tr>
               ) : filteredCases.map(row => (
                 <tr key={row.id} className="border-b last:border-b-0 hover:bg-gray-50 transition">
                   <td className="py-2 px-3 text-gray-800">{row.name_patient || '-'}</td>
                   <td className="py-2 px-3 text-gray-800">{row.ic_number || '-'}</td>
-                  <td className="py-2 px-3 text-gray-800">{row.date_time ? formatDisplayDateTime(row.date_time) : '-'}</td>
+                  <td className="py-2 px-3 text-gray-800">{row.date_time ? formatDisplayDate(row.date_time) : '-'}</td>
+                  <td className="py-2 px-3 text-gray-800">{row.date_time ? formatDisplayTime(row.date_time) : '-'}</td>
                   <td className="py-2 px-3 text-gray-800">
                     {row.status ? (
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
