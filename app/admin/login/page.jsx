@@ -14,9 +14,9 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setError("");
     
-    // Hardcoded admin credentials
-    const validEmail = "admin";
-    const validPassword = "admin123";
+    // Hardcoded admin credentials - fixed and cannot be changed
+    const validEmail = "systemmanager112@gmail.com";
+    const validPassword = "Z!9r@V7x#Lp2$uBn";
     
     if (email === validEmail && password === validPassword) {
       // Create a simple admin token that the backend will recognize
@@ -47,30 +47,35 @@ export default function AdminLoginPage() {
           <div className="mb-6">
             <span className="block text-lg sm:text-xl font-semibold text-gray-700 mb-4">User Login</span>
             <form className="space-y-4" onSubmit={handleSubmit}>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="text"
-                  placeholder="Username: admin"
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 text-gray-700 bg-gray-50"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  required
-                />
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                  <input
+                    id="email"
+                    type="email"
+                    placeholder="Email"
+                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 text-gray-700 bg-gray-50"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="password"
-                  placeholder="Password: admin123"
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 text-gray-700 bg-gray-50"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="flex justify-between items-center">
-                <a href="#" className="text-sm text-blue-600 hover:underline">Forgot password?</a>
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                  <input
+                    id="password"
+                    type="password"
+                    placeholder="Password"
+                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 text-gray-700 bg-gray-50"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
               {error && <div className="text-red-500 text-sm text-center">{error}</div>}
               <button

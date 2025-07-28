@@ -364,7 +364,7 @@ export default function CounselorDashboard() {
                   <RefreshCw size={14} className="animate-spin" />
                   <span>Auto-refresh: ON</span>
                 </div>
-                <NotificationDrawer />
+                <NotificationDrawer userType="counselor" />
               </div>
             </div>
             <div className="flex flex-col sm:flex-row justify-between items-center mb-2 gap-4 sm:gap-0">

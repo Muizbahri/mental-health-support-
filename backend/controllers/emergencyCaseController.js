@@ -1,6 +1,7 @@
 const emergencyCaseModel = require('../models/emergencyCase');
 const counselorsModel = require('../models/counselors');
 const psychiatristsModel = require('../models/psychiatrists');
+const notificationsModel = require('../models/notifications');
 
 exports.createEmergencyCase = async (req, res) => {
   try {
@@ -170,6 +171,23 @@ exports.updateEmergencyCase = async (req, res) => {
     
     console.log('Final update assignment IDs:', { counselor_id: finalCounselorId, psychiatrist_id: finalPsychiatristId });
     
+    // Get current case data to check if assignment changed
+    const currentCase = await emergencyCaseModel.getEmergencyCaseById(id);
+    const isNewAssignment = currentCase && (
+      currentCase.assigned_to !== assigned_to || 
+      currentCase.role !== role ||
+      currentCase.counselor_id !== finalCounselorId ||
+      currentCase.psychiatrist_id !== finalPsychiatristId
+    );
+    
+    console.log('Assignment check:', { 
+      isNewAssignment, 
+      currentAssigned: currentCase?.assigned_to, 
+      newAssigned: assigned_to,
+      currentRole: currentCase?.role,
+      newRole: role
+    });
+
     const success = await emergencyCaseModel.updateEmergencyCase(id, { 
       name_patient, 
       ic_number, 
@@ -184,6 +202,146 @@ exports.updateEmergencyCase = async (req, res) => {
     if (!success) {
       console.log('Update failed - case not found or no changes made for ID:', id);
       return res.status(404).json({ success: false, message: 'Emergency case not found or no changes made.' });
+    }
+    
+    // Send email and notification to assigned professional if this is a new assignment
+    if (isNewAssignment && assigned_to && (finalCounselorId || finalPsychiatristId)) {
+      console.log('Processing new assignment notification for:', { assigned_to, role, finalCounselorId, finalPsychiatristId });
+      
+      try {
+        const transporter = require('../utils/email');
+        
+        let professionalEmail = null;
+        let professionalName = assigned_to;
+        let userType = role.toLowerCase();
+        let userId = null;
+        
+        // Get professional's email and details based on role
+        if (role === 'Counselor' && finalCounselorId) {
+          const counselor = await counselorsModel.getCounselorById(finalCounselorId);
+          console.log('Found counselor:', counselor);
+          if (counselor) {
+            professionalEmail = counselor.email;
+            professionalName = counselor.full_name || assigned_to;
+            userId = finalCounselorId;
+          }
+        } else if (role === 'Psychiatrist' && finalPsychiatristId) {
+          const psychiatrist = await psychiatristsModel.getPsychiatristById(finalPsychiatristId);
+          console.log('Found psychiatrist:', psychiatrist);
+          if (psychiatrist) {
+            professionalEmail = psychiatrist.email;
+            professionalName = psychiatrist.full_name || assigned_to;
+            userId = finalPsychiatristId;
+          }
+        }
+        
+        console.log('Professional details:', { 
+          professionalEmail, 
+          professionalName, 
+          userType, 
+          userId 
+        });
+        
+        if (professionalEmail && userId) {
+          // Send email to assigned professional
+          console.log('Sending assignment email to:', professionalEmail);
+          await transporter.sendMail({
+            from: `"Mental Health System" <${process.env.MAIL_USER}>`,
+            to: professionalEmail,
+            subject: 'New Emergency Case Assigned to You - Immediate Attention Required',
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background-color: #dc3545; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+                  <h1 style="margin: 0; font-size: 24px;">🚨 Emergency Case Assignment</h1>
+                </div>
+                
+                <div style="background-color: #f8f9fa; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #dee2e6;">
+                  <h2 style="color: #333; margin-top: 0;">Hello ${professionalName},</h2>
+                  <p style="font-size: 16px; line-height: 1.6; color: #555;">
+                    You have been assigned a new emergency case by the admin. Please review the details below and take appropriate action as soon as possible.
+                  </p>
+                  
+                  <div style="background-color: white; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #dc3545;">
+                    <h3 style="color: #dc3545; margin-top: 0;">Emergency Case Details:</h3>
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Patient Name:</td>
+                        <td style="padding: 8px 0; color: #555;">${name_patient}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">IC Number:</td>
+                        <td style="padding: 8px 0; color: #555;">${ic_number}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Status:</td>
+                        <td style="padding: 8px 0; color: #555;">${status}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Assigned Role:</td>
+                        <td style="padding: 8px 0; color: #555;">${role}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Date/Time:</td>
+                        <td style="padding: 8px 0; color: #555;">${new Date(date_time).toLocaleString()}</td>
+                      </tr>
+                    </table>
+                  </div>
+                  
+                  <div style="background-color: #fff3cd; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107; margin: 20px 0;">
+                    <p style="margin: 0; color: #856404; font-weight: bold;">
+                      ⚠️ Action Required: Please log in to your dashboard and review this emergency case immediately.
+                    </p>
+                  </div>
+                  
+                  <div style="text-align: center; margin: 30px 0;">
+                    <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/${userType}/${role === 'Counselor' ? 'emergency-reports' : 'emergency-cases'}" 
+                       style="background-color: #dc3545; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block;">
+                      📋 View Emergency Cases
+                    </a>
+                  </div>
+                  
+                  <div style="border-top: 1px solid #dee2e6; padding-top: 20px; margin-top: 30px; text-align: center;">
+                    <p style="color: #6c757d; font-size: 14px; margin: 0;">
+                      This is an automated message from the Mental Health Support System.<br>
+                      Please do not reply to this email.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            `
+          });
+          
+          console.log('Email sent successfully to:', professionalEmail);
+          
+          // Create notification for assigned professional
+          console.log('Creating notification for user:', { userType, userId });
+          await notificationsModel.createNotification({
+            user_type: userType,
+            user_id: userId,
+            title: 'Emergency case assigned to you',
+            message: `New emergency case for ${name_patient} has been assigned to you`,
+            data: {
+              emergency_case_id: id,
+              patient_name: name_patient,
+              ic_number: ic_number,
+              status: status,
+              redirect_url: `/${userType}/${role === 'Counselor' ? 'emergency-reports' : 'emergency-cases'}`
+            }
+          });
+          
+          console.log('Notification created successfully for:', professionalName);
+        } else {
+          console.warn('Could not send notification - missing email or user ID:', { 
+            professionalEmail, 
+            userId,
+            role,
+            assigned_to 
+          });
+        }
+      } catch (notificationError) {
+        console.error('Error sending assignment email/notification:', notificationError);
+        // Don't fail the entire request if email/notification fails
+      }
     }
     
     console.log('Emergency case updated successfully:', id);
@@ -285,6 +443,66 @@ exports.createPublicEmergencyCase = async (req, res) => {
       name_patient,
       ic_number
     });
+    
+    // Send email to admin and create notification
+    try {
+      const transporter = require('../utils/email');
+      const notificationsModel = require('../models/notifications');
+      
+      // Send email to admin
+      await transporter.sendMail({
+        from: `"Mental Health System" <${process.env.MAIL_USER}>`,
+        to: 'systemmanager112@gmail.com',
+        subject: 'Emergency Case Received - Immediate Attention Required',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #dc3545; border-bottom: 2px solid #dc3545; padding-bottom: 10px;">
+              🚨 Emergency Case Received
+            </h2>
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="color: #333; margin-top: 0;">Patient Information:</h3>
+              <p><strong>Full Name:</strong> ${name_patient}</p>
+              <p><strong>IC Number:</strong> ${ic_number}</p>
+              <p><strong>Submitted at:</strong> ${new Date().toLocaleString()}</p>
+            </div>
+            <div style="background-color: #fff3cd; padding: 15px; border-left: 4px solid #ffc107; margin: 20px 0;">
+              <p style="margin: 0; color: #856404;">
+                <strong>Action Required:</strong> Please review and assign this emergency case to the appropriate professional as soon as possible.
+              </p>
+            </div>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin/manage-emergency" 
+                 style="background-color: #dc3545; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                View Emergency Cases
+              </a>
+            </div>
+            <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+            <p style="color: #666; font-size: 12px; text-align: center;">
+              This is an automated message from the Mental Health Support System.
+            </p>
+          </div>
+        `
+      });
+      
+      // Create notification for admin
+      await notificationsModel.createNotification({
+        user_type: 'admin',
+        user_id: null, // Admin doesn't have a specific user ID
+        title: 'Emergency case received',
+        message: `New emergency case from ${name_patient} (IC: ${ic_number})`,
+        data: {
+          emergency_case_id: id,
+          patient_name: name_patient,
+          ic_number: ic_number,
+          redirect_url: '/admin/manage-emergency'
+        }
+      });
+      
+      console.log('Email sent to admin and notification created for emergency case ID:', id);
+    } catch (notificationError) {
+      console.error('Error sending email/notification for emergency case:', notificationError);
+      // Don't fail the entire request if email/notification fails
+    }
     
     res.status(201).json({ success: true, message: 'Emergency case submitted successfully', id });
   } catch (error) {

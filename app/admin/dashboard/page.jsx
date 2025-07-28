@@ -149,7 +149,7 @@ export default function AdminDashboard() {
               <RefreshCw size={14} className="animate-spin" />
               <span>Auto-refresh: ON</span>
             </div>
-            <NotificationDrawer />
+            <NotificationDrawer userType="admin" />
           </div>
         </div>
         {/* Summary Cards */}

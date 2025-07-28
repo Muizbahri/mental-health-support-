@@ -27,6 +27,7 @@ const emailRoutes = require('./routes/emailRoutes');
 const emailTestRoutes = require('./routes/emailTest');
 const addCounselorRoute = require('./routes/addCounselor');
 const psychiatristAppointmentsRoutes = require('./routes/psychiatrist_appointments');
+const notificationsRoutes = require('./routes/notifications');
 
 // Middleware
 app.use(cors());
@@ -44,6 +45,7 @@ app.use('/api/feedbacks', feedbacksRoutes);
 app.use('/api/appointments', appointmentsRoutes);
 app.use('/api/emergency-cases', emergencyCasesRoutes);
 app.use('/api/emergency_cases', emergencyCasesRoutes);
+app.use('/api/notifications', notificationsRoutes);
 app.use('/api/psychiatrists', psychiatristsRoutes);
 app.use('/api/counselors', counselorsRoutes);
 app.use('/api/public-users', publicUsersRoutes);
