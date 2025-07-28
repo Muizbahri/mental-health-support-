@@ -1,0 +1,26 @@
+🚨 EMERGENCY 502 FIX COMMAND 🚨
+
+SSH into your VPS and run this ONE-LINER command:
+
+```bash
+cd /var/www/mental-health-support && pm2 kill && cd backend && npm install && pm2 start server.js --name "backend" --env production && cd .. && npm install && npm run build && pm2 start "npm run start" --name "frontend" --env production && sudo systemctl restart nginx && pm2 save && sleep 5 && curl -I https://caremental.online
+```
+
+If the above doesn't work, try the alternative directory:
+
+```bash
+cd /home/ubuntu/mental-health-support && pm2 kill && cd backend && npm install && pm2 start server.js --name "backend" --env production && cd .. && npm install && npm run build && pm2 start "npm run start" --name "frontend" --env production && sudo systemctl restart nginx && pm2 save && sleep 5 && curl -I https://caremental.online
+```
+
+What this command does:
+1. Navigate to your app directory
+2. Kill all PM2 processes
+3. Start backend with PM2
+4. Build and start frontend with PM2
+5. Restart NGINX
+6. Save PM2 configuration
+7. Test the website
+
+If you get "permission denied" errors, add `sudo` before the command.
+
+For more detailed diagnosis, use the fix_502_error.sh script instead. 
