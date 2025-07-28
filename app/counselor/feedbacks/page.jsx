@@ -339,9 +339,30 @@ export default function CounselorFeedbackPage() {
                     </button>
                   </div>
                   <div className="text-gray-800 mb-2">"{fb.feedback}"</div>
+<<<<<<< HEAD
                   <span className={`inline-block px-3 py-1 text-xs rounded-full border font-semibold ${getStatusColor('Under Review')}`}>
                     Under Review
                   </span>
+=======
+                  
+                  {/* Admin Response Section */}
+                  {fb.admin_response ? (
+                    <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle className="text-green-600" size={16} />
+                        <span className="font-semibold text-green-800 text-sm">Admin Response</span>
+                        <span className="ml-auto text-xs text-green-600">
+                          {fb.responded_at ? new Date(fb.responded_at).toLocaleDateString() : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="text-green-800 text-sm">"{fb.admin_response}"</div>
+                    </div>
+                  ) : (
+                    <span className={`inline-block px-3 py-1 text-xs rounded-full border font-semibold ${getStatusColor('Under Review')}`}>
+                      Under Review
+                    </span>
+                  )}
+>>>>>>> 923c6e4110cfd6dbd6e37a2ae66c7b98f9749ac9
                 </div>
               ))}
             </div>

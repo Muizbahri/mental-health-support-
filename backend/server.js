@@ -21,12 +21,14 @@ const psychiatristsRoutes = require('./routes/psychiatrists');
 const publicUsersRoutes = require('./routes/publicUsers');
 const ngoRoutes = require('./routes/ngo');
 const referralRequestsRouter = require('./routes/referral_requests');
-const scrapeActivitiesRoutes = require('./routes/scrape-activities');
-const activitiesRoutes = require('./routes/activities');
+
+
 const emailRoutes = require('./routes/emailRoutes');
 const emailTestRoutes = require('./routes/emailTest');
 const addCounselorRoute = require('./routes/addCounselor');
 const psychiatristAppointmentsRoutes = require('./routes/psychiatrist_appointments');
+const notificationsRoutes = require('./routes/notifications');
+const resetRoutes = require('./routes/resetRoutes');
 
 // Middleware
 app.use(cors());
@@ -44,6 +46,7 @@ app.use('/api/feedbacks', feedbacksRoutes);
 app.use('/api/appointments', appointmentsRoutes);
 app.use('/api/emergency-cases', emergencyCasesRoutes);
 app.use('/api/emergency_cases', emergencyCasesRoutes);
+app.use('/api/notifications', notificationsRoutes);
 app.use('/api/psychiatrists', psychiatristsRoutes);
 app.use('/api/counselors', counselorsRoutes);
 app.use('/api/public-users', publicUsersRoutes);
@@ -85,12 +88,13 @@ app.use('/api/add-public', (req, res, next) => {
 
 app.use('/api', ngoRoutes);
 app.use('/api', referralRequestsRouter);
-app.use('/api/activities', activitiesRoutes);
-app.use('/api/scrape-activities', scrapeActivitiesRoutes);
+
+
 app.use('/api/email', emailRoutes);
 app.use('/api', emailTestRoutes);
 app.use('/api', addCounselorRoute);
 app.use('/api/psychiatrist-appointments', psychiatristAppointmentsRoutes);
+app.use('/api/auth', resetRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

@@ -1,6 +1,6 @@
 "use client";
 import { useRouter, usePathname } from "next/navigation";
-import { Home, Users, BookOpen, MessageCircle, AlertTriangle, LogOut, Edit, Trash2, Plus, Calendar, User } from "lucide-react";
+import { Home, Users, BookOpen, MessageCircle, AlertTriangle, LogOut, Edit, Trash2, Plus, Calendar, User, Reply } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import AdminSidebar from '../Sidebar';
@@ -33,6 +33,10 @@ export default function ManageFeedbacksPage() {
   const router = useRouter();
   const pathname = usePathname();
   const [modal, setModal] = useState({ open: false, feedback: null });
+<<<<<<< HEAD
+=======
+  const [responseModal, setResponseModal] = useState({ open: false, feedback: null });
+>>>>>>> 923c6e4110cfd6dbd6e37a2ae66c7b98f9749ac9
   const [feedbacks, setFeedbacks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -105,6 +109,38 @@ export default function ManageFeedbacksPage() {
   function handleClose() {
     setModal({ open: false, feedback: null });
   }
+<<<<<<< HEAD
+=======
+
+  function handleRespond(feedback) {
+    setResponseModal({ open: true, feedback });
+  }
+
+  function handleCloseResponse() {
+    setResponseModal({ open: false, feedback: null });
+  }
+
+  async function handleSubmitResponse(feedbackId, adminResponse) {
+    try {
+      const response = await fetch(`/api/feedbacks/respond/${feedbackId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_response: adminResponse }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        handleCloseResponse();
+        fetchFeedbacks(); // Refresh the list
+      } else {
+        alert(data.message || 'Failed to submit response');
+      }
+    } catch (error) {
+      console.error('Error submitting response:', error);
+      alert('Failed to submit response');
+    }
+  }
+>>>>>>> 923c6e4110cfd6dbd6e37a2ae66c7b98f9749ac9
   
   async function handleSubmit(form, isEdit) {
     const payload = {
@@ -222,6 +258,10 @@ export default function ManageFeedbacksPage() {
                     <th className="py-3 px-4 text-left font-semibold text-gray-800">Full Name</th>
                     <th className="py-3 px-4 text-left font-semibold text-gray-800">Type of Feedback</th>
                     <th className="py-3 px-4 text-left font-semibold text-gray-800">Feedback</th>
+<<<<<<< HEAD
+=======
+                    <th className="py-3 px-4 text-left font-semibold text-gray-800">Admin Response</th>
+>>>>>>> 923c6e4110cfd6dbd6e37a2ae66c7b98f9749ac9
                     <th className="py-3 px-4 text-left font-semibold text-gray-800">Date</th>
                     <th className="py-3 px-4 text-left font-semibold text-gray-800">Actions</th>
                   </tr>
@@ -229,7 +269,11 @@ export default function ManageFeedbacksPage() {
                 <tbody>
                   {filteredFeedbacks.length === 0 ? (
                     <tr>
+<<<<<<< HEAD
                       <td colSpan={6} className="text-center text-gray-400 py-8">
+=======
+                      <td colSpan={7} className="text-center text-gray-400 py-8">
+>>>>>>> 923c6e4110cfd6dbd6e37a2ae66c7b98f9749ac9
                         {searchTerm || roleFilter !== "all" ? "No feedback matches your search criteria" : "No feedback found"}
                       </td>
                     </tr>
@@ -248,12 +292,39 @@ export default function ManageFeedbacksPage() {
                             {row.feedback.length > 50 ? row.feedback.substring(0, 50) + '...' : row.feedback}
                           </div>
                         </td>
+<<<<<<< HEAD
+=======
+                        <td className="py-3 px-4 text-gray-800 max-w-xs">
+                          {row.admin_response ? (
+                            <div>
+                              <div className="truncate text-sm" title={row.admin_response}>
+                                {row.admin_response.length > 40 ? row.admin_response.substring(0, 40) + '...' : row.admin_response}
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                Responded: {row.responded_at ? new Date(row.responded_at).toLocaleDateString() : 'N/A'}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 italic text-sm">No response yet</span>
+                          )}
+                        </td>
+>>>>>>> 923c6e4110cfd6dbd6e37a2ae66c7b98f9749ac9
                         <td className="py-3 px-4 text-gray-600">
                           {new Date(row.feedback_date).toLocaleDateString()}
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex gap-2">
                             <button 
+<<<<<<< HEAD
+=======
+                              className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-50" 
+                              onClick={() => handleRespond(row)}
+                              title={row.admin_response ? "Update response" : "Add response"}
+                            >
+                              <Reply size={16} />
+                            </button>
+                            <button 
+>>>>>>> 923c6e4110cfd6dbd6e37a2ae66c7b98f9749ac9
                               className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" 
                               onClick={() => handleEdit(row)}
                               title="Edit feedback"
@@ -280,6 +351,17 @@ export default function ManageFeedbacksPage() {
 
         {modal.open && (
           <FeedbackModal feedback={modal.feedback} onClose={handleClose} onSubmit={handleSubmit} />
+<<<<<<< HEAD
+=======
+        )}
+
+        {responseModal.open && (
+          <AdminResponseModal 
+            feedback={responseModal.feedback} 
+            onClose={handleCloseResponse} 
+            onSubmit={handleSubmitResponse} 
+          />
+>>>>>>> 923c6e4110cfd6dbd6e37a2ae66c7b98f9749ac9
         )}
       </main>
     </div>
@@ -427,6 +509,96 @@ function FeedbackModal({ feedback, onClose, onSubmit }) {
           >
             {loading ? (feedback ? 'Saving...' : 'Adding...') : (feedback ? 'Save' : 'Add')}
           </button>
+<<<<<<< HEAD
+=======
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function AdminResponseModal({ feedback, onClose, onSubmit }) {
+  const [response, setResponse] = useState(feedback?.admin_response || '');
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!response.trim()) {
+      alert('Please enter a response');
+      return;
+    }
+    setLoading(true);
+    await onSubmit(feedback.id, response.trim());
+    setLoading(false);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose}></div>
+      <form onSubmit={handleSubmit} className="relative z-10 bg-white rounded-xl shadow-xl p-8 w-full max-w-2xl mx-auto flex flex-col gap-5 max-h-[90vh] overflow-y-auto">
+        <h3 className="text-2xl font-bold mb-2 text-gray-900">
+          {feedback?.admin_response ? 'Update Admin Response' : 'Add Admin Response'}
+        </h3>
+        
+        {/* Display Original Feedback */}
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <h4 className="font-semibold text-gray-800 mb-2">Original Feedback:</h4>
+          <div className="mb-2">
+            <span className="text-sm font-medium text-gray-600">From: </span>
+            <span className="text-sm text-gray-800">{feedback?.fullName || feedback?.full_name}</span>
+            <span className="ml-4 text-sm font-medium text-gray-600">Type: </span>
+            <span className="text-sm text-gray-800">{feedback?.typeOfFeedback || feedback?.type_of_feedback}</span>
+          </div>
+          <p className="text-gray-800 text-sm">{feedback?.feedback}</p>
+          <div className="text-xs text-gray-500 mt-2">
+            Submitted: {feedback?.feedback_date ? new Date(feedback.feedback_date).toLocaleDateString() : 'N/A'}
+          </div>
+        </div>
+        
+        {/* Response Input */}
+        <div className="flex flex-col gap-2">
+          <label className="font-medium text-gray-800">Admin Response</label>
+          <textarea 
+            value={response} 
+            onChange={(e) => setResponse(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-gray-900 placeholder-gray-400 min-h-[120px]" 
+            rows={6} 
+            required 
+            placeholder="Enter your response to this feedback..."
+          />
+          <div className="text-xs text-gray-500">
+            This response will be visible to the user who submitted the feedback.
+          </div>
+        </div>
+        
+        {/* Existing Response Info */}
+        {feedback?.admin_response && (
+          <div className="bg-blue-50 p-3 rounded-lg">
+            <div className="text-sm font-medium text-blue-800 mb-1">Current Response:</div>
+            <div className="text-sm text-blue-700 mb-2">{feedback.admin_response}</div>
+            <div className="text-xs text-blue-600">
+              Responded: {feedback.responded_at ? new Date(feedback.responded_at).toLocaleString() : 'N/A'}
+            </div>
+          </div>
+        )}
+        
+        <div className="flex justify-end gap-3 mt-4">
+          <button 
+            type="button" 
+            className="px-4 py-2 rounded-lg border border-gray-400 bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold" 
+            onClick={onClose} 
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            className="px-4 py-2 rounded-lg bg-green-600 text-white font-semibold hover:bg-green-700 disabled:opacity-50" 
+            disabled={loading}
+          >
+            {loading ? 'Submitting...' : (feedback?.admin_response ? 'Update Response' : 'Submit Response')}
+          </button>
+>>>>>>> 923c6e4110cfd6dbd6e37a2ae66c7b98f9749ac9
         </div>
       </form>
     </div>

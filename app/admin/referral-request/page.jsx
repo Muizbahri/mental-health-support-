@@ -102,6 +102,7 @@ export default function ReferralRequestPage() {
       setIsAuthenticated(true);
     }
   }, []);
+<<<<<<< HEAD
 
   // Auto-refresh referral requests data every 12 seconds
   const { refresh: refreshRequests } = useAutoRefresh(
@@ -109,6 +110,8 @@ export default function ReferralRequestPage() {
     12000, // 12 seconds
     isAuthenticated // Only refresh when authenticated
   );
+=======
+>>>>>>> 923c6e4110cfd6dbd6e37a2ae66c7b98f9749ac9
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -124,6 +127,16 @@ export default function ReferralRequestPage() {
     setLoading(false);
   };
 
+<<<<<<< HEAD
+=======
+  // Auto-refresh referral requests data every 12 seconds
+  const { refresh: refreshRequests } = useAutoRefresh(
+    fetchRequests,
+    12000, // 12 seconds
+    isAuthenticated // Only refresh when authenticated
+  );
+
+>>>>>>> 923c6e4110cfd6dbd6e37a2ae66c7b98f9749ac9
   useEffect(() => { 
     if (isAuthenticated) {
       fetchRequests(); 

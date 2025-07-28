@@ -8,11 +8,11 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:5000/api/:path*',
+        destination: `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/:path*`,
       },
       {
         source: '/uploads/:path*',
-        destination: 'http://localhost:5000/uploads/:path*',
+        destination: `${process.env.BACKEND_URL || 'http://localhost:5000'}/uploads/:path*`,
       },
     ];
   },

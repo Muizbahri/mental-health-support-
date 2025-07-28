@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Mail, Lock, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import PasswordResetModal from "../../../components/PasswordResetModal";
 
 export default function CounselorLoginPage() {
   const router = useRouter();
@@ -10,6 +11,7 @@ export default function CounselorLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -92,7 +94,13 @@ export default function CounselorLoginPage() {
                 />
               </div>
               <div className="flex justify-between items-center">
-                <a href="#" className="text-sm text-blue-600 hover:underline">Forgot password?</a>
+                <button
+                  type="button"
+                  className="text-sm text-blue-600 hover:underline"
+                  onClick={() => setShowPasswordReset(true)}
+                >
+                  Forgot password?
+                </button>
                 <button
                   type="button"
                   className="text-sm text-blue-600 hover:text-blue-800 font-medium ml-2"
@@ -123,6 +131,12 @@ export default function CounselorLoginPage() {
           </div>
         </div>
       </div>
+      
+      <PasswordResetModal
+        isOpen={showPasswordReset}
+        onClose={() => setShowPasswordReset(false)}
+        userType="counselor"
+      />
     </div>
   );
 } 

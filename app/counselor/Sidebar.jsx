@@ -11,7 +11,7 @@ const menu = [
   { key: "MATERIALS", label: "Materials", icon: <FileText size={20} />, href: "/counselor/materials" },
   { key: "FEEDBACK", label: "Feedback", icon: <MessageCircle size={20} />, href: "/counselor/feedbacks" },
   { key: "REFERRAL", label: "Referral Request", icon: <ArrowRight size={20} />, href: "/counselor/referral-request" },
-  { key: "SCRAPE_ACTIVITIES", label: "Scrape Activities", icon: <FileText size={20} />, href: "/counselor/scrape-activities" },
+
   { key: "PROFILE", label: "Profile", icon: <User size={20} />, href: "/counselor/profile" },
 ];
 

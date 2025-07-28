@@ -137,6 +137,44 @@ exports.deleteFeedback = async (req, res) => {
   }
 };
 
+<<<<<<< HEAD
+=======
+// Admin responds to feedback
+exports.respondToFeedback = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { admin_response } = req.body;
+    
+    if (!admin_response || admin_response.trim() === '') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Admin response is required' 
+      });
+    }
+    
+    console.log('Admin responding to feedback ID:', id);
+    console.log('Admin response:', admin_response.substring(0, 100) + '...');
+    
+    const success = await feedbacksModel.addAdminResponse(id, admin_response.trim());
+    
+    if (success) {
+      res.json({ 
+        success: true, 
+        message: 'Admin response added successfully' 
+      });
+    } else {
+      res.status(404).json({ 
+        success: false, 
+        message: 'Feedback not found' 
+      });
+    }
+  } catch (err) {
+    console.error('Error adding admin response:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+>>>>>>> 923c6e4110cfd6dbd6e37a2ae66c7b98f9749ac9
 // Delete feedback with user ownership verification using user_id
 exports.deleteFeedbackByUser = async (req, res) => {
   try {

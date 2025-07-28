@@ -51,6 +51,22 @@ exports.deleteFeedbackByUserId = async (id, user_id) => {
   return result.affectedRows > 0;
 };
 
+<<<<<<< HEAD
+=======
+// Add admin response to feedback
+exports.addAdminResponse = async (id, admin_response) => {
+  // Always use Malaysia time (UTC+8) for response time
+  const nowInMalaysia = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kuala_Lumpur" }));
+  const responded_at = nowInMalaysia.toISOString().slice(0, 19).replace('T', ' ');
+  
+  const [result] = await db.query(
+    'UPDATE manage_feedbacks SET admin_response=?, responded_at=? WHERE id=?',
+    [admin_response, responded_at, id]
+  );
+  return result.affectedRows > 0;
+};
+
+>>>>>>> 923c6e4110cfd6dbd6e37a2ae66c7b98f9749ac9
 // Get feedback by ID and verify ownership (for edit operations)
 exports.getFeedbackByIdAndUserId = async (id, user_id) => {
   const [rows] = await db.query(

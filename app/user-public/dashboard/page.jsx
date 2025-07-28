@@ -743,7 +743,11 @@ export default function PublicDashboard() {
               <RefreshCw size={14} className="animate-spin" />
               <span>Auto-refresh: ON</span>
             </div>
+<<<<<<< HEAD
             <NotificationDrawer />
+=======
+            <NotificationDrawer userType="user_public" />
+>>>>>>> 923c6e4110cfd6dbd6e37a2ae66c7b98f9749ac9
           </div>
         </div>
         {/* Mood Buttons */}

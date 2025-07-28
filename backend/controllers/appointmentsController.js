@@ -291,6 +291,16 @@ exports.updateAppointment = async (req, res) => {
     const { id } = req.params;
     let { role, name_patient, contact, assigned_to, status, date_time, user_public_id, counselor_id } = req.body;
     const user = req.user;
+    
+    console.log('🔍 updateAppointment called with:', {
+      id,
+      role,
+      name_patient,
+      status,
+      user_public_id,
+      counselor_id,
+      user: user ? { role: user.role, email: user.email } : null
+    });
     // Fetch the appointment to check ownership and get current values
     const [appointment] = await appointmentsModel.getAppointments({ id });
     if (!appointment) {
@@ -303,10 +313,152 @@ exports.updateAppointment = async (req, res) => {
     if (!name_patient || name_patient.trim() === "") name_patient = appointment.name_patient;
     if (!user_public_id) user_public_id = appointment.user_public_id;
     if (!counselor_id) counselor_id = appointment.counselor_id;
+    // Check if status changed to notify user_public
+    const previousStatus = appointment.status;
+    const statusChanged = previousStatus !== status;
+    
+    console.log('🔍 Status change detection:', {
+      appointmentId: id,
+      previousStatus,
+      newStatus: status,
+      statusChanged,
+      user_public_id,
+      willSendNotification: statusChanged && user_public_id && (status === 'Accepted' || status === 'Rejected')
+    });
+    
     const success = await appointmentsModel.updateAppointment(id, { role, name_patient, user_public_id, contact, assigned_to, status, date_time, created_by: appointment.created_by, counselor_id });
     if (!success) {
       return res.status(404).json({ success: false, message: 'Appointment not found.' });
     }
+    
+    // Send notification and email to user_public if status changed to Accepted or Rejected
+    if (statusChanged && user_public_id && (status === 'Accepted' || status === 'Rejected')) {
+      console.log('✅ Triggering email and notification for user_public:', user_public_id);
+      try {
+        // Get user_public details
+        const publicUsersModel = require('../models/publicUser');
+        const publicUser = await publicUsersModel.getPublicUserById(user_public_id);
+        
+        if (publicUser) {
+          const transporter = require('../utils/email');
+          const notificationsModel = require('../models/notifications');
+          
+          // Format date and time for email
+          const appointmentDateTime = new Date(date_time);
+          const formattedDate = appointmentDateTime.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: '2-digit', 
+            year: 'numeric'
+          });
+          const formattedTime = appointmentDateTime.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+          
+          // Determine email content based on status
+          const isAccepted = status === 'Accepted';
+          const statusIcon = isAccepted ? '✅' : '❌';
+          const statusColor = isAccepted ? '#10b981' : '#ef4444';
+          const statusText = isAccepted ? 'ACCEPTED' : 'REJECTED';
+          const actionMessage = isAccepted 
+            ? 'Your appointment has been confirmed. Please arrive on time for your session.'
+            : 'Unfortunately, your appointment request could not be accommodated. You may book a different time slot.';
+          
+          // Send email to user_public
+          await transporter.sendMail({
+            from: `"Mental Health System" <${process.env.MAIL_USER}>`,
+            to: publicUser.email,
+            subject: `Appointment ${statusText} - ${assigned_to}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background-color: ${statusColor}; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+                  <h1 style="margin: 0; font-size: 24px;">${statusIcon} Appointment ${statusText}</h1>
+                </div>
+                
+                <div style="background-color: #f8f9fa; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #dee2e6;">
+                  <h2 style="color: #333; margin-top: 0;">Hello ${publicUser.full_name},</h2>
+                  <p style="font-size: 16px; line-height: 1.6; color: #555;">
+                    Your appointment request with ${assigned_to} has been <strong>${status.toLowerCase()}</strong>.
+                  </p>
+                  
+                  <div style="background-color: white; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid ${statusColor};">
+                    <h3 style="color: ${statusColor}; margin-top: 0;">Appointment Details:</h3>
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Professional:</td>
+                        <td style="padding: 8px 0; color: #555;">${assigned_to}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Appointment Type:</td>
+                        <td style="padding: 8px 0; color: #555;">Counseling Session</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Date:</td>
+                        <td style="padding: 8px 0; color: #555;">${formattedDate}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Time:</td>
+                        <td style="padding: 8px 0; color: #555;">${formattedTime}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Status:</td>
+                        <td style="padding: 8px 0; color: ${statusColor}; font-weight: bold;">${status}</td>
+                      </tr>
+                    </table>
+                  </div>
+                  
+                  <div style="background-color: ${isAccepted ? '#d1ecf1' : '#f8d7da'}; padding: 15px; border-radius: 6px; border-left: 4px solid ${isAccepted ? '#17a2b8' : '#dc3545'}; margin: 20px 0;">
+                    <p style="margin: 0; color: ${isAccepted ? '#0c5460' : '#721c24'}; font-weight: bold;">
+                      📋 ${actionMessage}
+                    </p>
+                  </div>
+                  
+                  <div style="text-align: center; margin: 30px 0;">
+                    <a href="${process.env.BASE_URL}/user-public/appointments" 
+                       style="background-color: ${statusColor}; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block;">
+                      📅 View My Appointments
+                    </a>
+                  </div>
+                  
+                  <div style="border-top: 1px solid #dee2e6; padding-top: 20px; margin-top: 30px; text-align: center;">
+                    <p style="color: #6c757d; font-size: 14px; margin: 0;">
+                      This is an automated message from the Mental Health Support System.<br>
+                      Please do not reply to this email.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            `
+          });
+          
+          console.log('✅ Email sent to user_public:', publicUser.email);
+          
+          // Create notification for user_public
+          await notificationsModel.createNotification({
+            user_type: 'user_public',
+            user_id: user_public_id,
+            title: `Appointment ${status.toLowerCase()}`,
+            message: `Your appointment request with ${assigned_to} has been ${status.toLowerCase()}`,
+            data: {
+              appointment_id: id,
+              professional_name: assigned_to,
+              appointment_date: formattedDate,
+              appointment_time: formattedTime,
+              appointment_type: 'Counseling Session',
+              status: status,
+              redirect_url: '/user-public/appointments'
+            }
+          });
+          
+          console.log('✅ Notification created for user_public:', publicUser.full_name);
+        }
+      } catch (emailError) {
+        console.error('❌ Error sending appointment status email/notification to user_public:', emailError);
+        // Don't fail the entire request if email/notification fails
+      }
+    }
+    
     res.json({ success: true, message: 'Appointment updated successfully.' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -456,6 +608,140 @@ exports.createPublicAppointment = async (req, res) => {
       };
       
       const id = await psychiatristAppointmentsModel.createPsychiatristAppointment(appointmentData);
+      
+      console.log('🔍 Psychiatrist appointment creation debug:', {
+        psychiatrist_id: psychiatrist.id,
+        psychiatrist_found: !!psychiatrist,
+        psychiatrist_email: psychiatrist?.email,
+        psychiatrist_name: psychiatrist?.full_name,
+        will_send_notification: !!(psychiatrist && psychiatrist.email)
+      });
+      
+      // Send email and notification to psychiatrist
+      try {
+        const transporter = require('../utils/email');
+        
+        if (psychiatrist.email) {
+          // Format date and time for email
+          const appointmentDateTime = new Date(date_time);
+          const formattedDate = appointmentDateTime.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: '2-digit', 
+            year: 'numeric'
+          });
+          const formattedTime = appointmentDateTime.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+          
+          // Send email to psychiatrist
+          await transporter.sendMail({
+            from: `"Mental Health System" <${process.env.MAIL_USER}>`,
+            to: psychiatrist.email,
+            subject: 'New Appointment Scheduled - Action Required',
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background-color: #4f46e5; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+                  <h1 style="margin: 0; font-size: 24px;">📅 New Appointment Scheduled</h1>
+                </div>
+                
+                <div style="background-color: #f8f9fa; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #dee2e6;">
+                  <h2 style="color: #333; margin-top: 0;">Hello Dr. ${psychiatrist.full_name},</h2>
+                  <p style="font-size: 16px; line-height: 1.6; color: #555;">
+                    A new appointment has been scheduled with you. Please review the details below:
+                  </p>
+                  
+                  <div style="background-color: white; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #4f46e5;">
+                    <h3 style="color: #4f46e5; margin-top: 0;">Appointment Details:</h3>
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Patient Name:</td>
+                        <td style="padding: 8px 0; color: #555;">${name_patient}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Appointment Type:</td>
+                        <td style="padding: 8px 0; color: #555;">Psychiatrist Consultation</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Date:</td>
+                        <td style="padding: 8px 0; color: #555;">${formattedDate}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Time:</td>
+                        <td style="padding: 8px 0; color: #555;">${formattedTime}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Status:</td>
+                        <td style="padding: 8px 0; color: #555;">${status}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Contact:</td>
+                        <td style="padding: 8px 0; color: #555;">${userContact}</td>
+                      </tr>
+                    </table>
+                  </div>
+                  
+                  <div style="background-color: #d1ecf1; padding: 15px; border-radius: 6px; border-left: 4px solid #17a2b8; margin: 20px 0;">
+                    <p style="margin: 0; color: #0c5460; font-weight: bold;">
+                      💡 Please log in to your dashboard to view and manage this appointment.
+                    </p>
+                  </div>
+                  
+                  <div style="text-align: center; margin: 30px 0;">
+                    <a href="${process.env.BASE_URL}/psychiatryst/appointments" 
+                       style="background-color: #4f46e5; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block;">
+                      📋 View Appointments
+                    </a>
+                  </div>
+                  
+                  <div style="border-top: 1px solid #dee2e6; padding-top: 20px; margin-top: 30px; text-align: center;">
+                    <p style="color: #6c757d; font-size: 14px; margin: 0;">
+                      This is an automated message from the Mental Health Support System.<br>
+                      Please do not reply to this email.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            `
+          });
+          
+          console.log('✅ Email sent to psychiatrist:', psychiatrist.email);
+          
+          // Create notification for psychiatrist
+          console.log('🔍 About to create notification for psychiatrist:', {
+            user_type: 'psychiatrist',
+            user_id: psychiatrist.id,
+            title: 'New appointment scheduled',
+            message: `New appointment with ${name_patient} on ${formattedDate} at ${formattedTime}`
+          });
+          
+          try {
+            const notificationId = await notificationsModel.createNotification({
+              user_type: 'psychiatrist',
+              user_id: psychiatrist.id,
+              title: 'New appointment scheduled',
+              message: `New appointment with ${name_patient} on ${formattedDate} at ${formattedTime}`,
+              data: {
+                appointment_id: id,
+                patient_name: name_patient,
+                appointment_date: formattedDate,
+                appointment_time: formattedTime,
+                appointment_type: 'Psychiatrist Consultation',
+                redirect_url: '/psychiatryst/appointments'
+              }
+            });
+            
+            console.log('✅ Notification created for psychiatrist:', psychiatrist.full_name, 'with ID:', notificationId);
+          } catch (notificationError) {
+            console.error('❌ Error creating notification for psychiatrist:', notificationError);
+          }
+        }
+      } catch (emailError) {
+        console.error('❌ Error sending appointment email/notification:', emailError);
+        // Don't fail the entire request if email/notification fails
+      }
+      
       return res.status(201).json({ message: 'Psychiatrist appointment created successfully', id });
       
     } else if (role === 'Counselor') {
@@ -492,6 +778,145 @@ exports.createPublicAppointment = async (req, res) => {
         counselor_id
       };
       const id = await appointmentsModel.createAppointment(appointmentData);
+      
+      // Get counselor details if not already fetched
+      if (!counselor) {
+        counselor = await counselorsModel.getCounselorById(counselor_id);
+      }
+      
+      console.log('🔍 Counselor appointment creation debug:', {
+        counselor_id,
+        counselor_found: !!counselor,
+        counselor_email: counselor?.email,
+        counselor_name: counselor?.full_name,
+        will_send_notification: !!(counselor && counselor.email)
+      });
+      
+      // Send email and notification to counselor
+      try {
+        const transporter = require('../utils/email');
+        
+        if (counselor && counselor.email) {
+          // Format date and time for email
+          const appointmentDateTime = new Date(date_time);
+          const formattedDate = appointmentDateTime.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: '2-digit', 
+            year: 'numeric'
+          });
+          const formattedTime = appointmentDateTime.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+          
+          // Send email to counselor
+          await transporter.sendMail({
+            from: `"Mental Health System" <${process.env.MAIL_USER}>`,
+            to: counselor.email,
+            subject: 'New Appointment Scheduled - Action Required',
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background-color: #10b981; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+                  <h1 style="margin: 0; font-size: 24px;">📅 New Appointment Scheduled</h1>
+                </div>
+                
+                <div style="background-color: #f8f9fa; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #dee2e6;">
+                  <h2 style="color: #333; margin-top: 0;">Hello ${counselor.full_name},</h2>
+                  <p style="font-size: 16px; line-height: 1.6; color: #555;">
+                    A new appointment has been scheduled with you. Please review the details below:
+                  </p>
+                  
+                  <div style="background-color: white; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #10b981;">
+                    <h3 style="color: #10b981; margin-top: 0;">Appointment Details:</h3>
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Patient Name:</td>
+                        <td style="padding: 8px 0; color: #555;">${name_patient}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Appointment Type:</td>
+                        <td style="padding: 8px 0; color: #555;">Counseling Session</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Date:</td>
+                        <td style="padding: 8px 0; color: #555;">${formattedDate}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Time:</td>
+                        <td style="padding: 8px 0; color: #555;">${formattedTime}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Status:</td>
+                        <td style="padding: 8px 0; color: #555;">${status}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Contact:</td>
+                        <td style="padding: 8px 0; color: #555;">${userContact}</td>
+                      </tr>
+                    </table>
+                  </div>
+                  
+                  <div style="background-color: #d1ecf1; padding: 15px; border-radius: 6px; border-left: 4px solid #17a2b8; margin: 20px 0;">
+                    <p style="margin: 0; color: #0c5460; font-weight: bold;">
+                      💡 Please log in to your dashboard to view and manage this appointment.
+                    </p>
+                  </div>
+                  
+                  <div style="text-align: center; margin: 30px 0;">
+                    <a href="${process.env.BASE_URL}/counselor/appointments" 
+                       style="background-color: #10b981; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block;">
+                       📋 View Appointments
+                    </a>
+                  </div>
+                  
+                  <div style="border-top: 1px solid #dee2e6; padding-top: 20px; margin-top: 30px; text-align: center;">
+                    <p style="color: #6c757d; font-size: 14px; margin: 0;">
+                      This is an automated message from the Mental Health Support System.<br>
+                      Please do not reply to this email.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            `
+          });
+          
+          console.log('✅ Email sent to counselor:', counselor.email);
+          
+          // Create notification for counselor
+          console.log('🔍 About to create notification for counselor:', {
+            user_type: 'counselor',
+            user_id: counselor.id,
+            title: 'New appointment scheduled',
+            message: `New appointment with ${name_patient} on ${formattedDate} at ${formattedTime}`
+          });
+          
+          try {
+            const notificationId = await notificationsModel.createNotification({
+              user_type: 'counselor',
+              user_id: counselor.id,
+              title: 'New appointment scheduled',
+              message: `New appointment with ${name_patient} on ${formattedDate} at ${formattedTime}`,
+              data: {
+                appointment_id: id,
+                patient_name: name_patient,
+                appointment_date: formattedDate,
+                appointment_time: formattedTime,
+                appointment_type: 'Counseling Session',
+                redirect_url: '/counselor/appointments'
+              }
+            });
+            
+            console.log('✅ Notification created for counselor:', counselor.full_name, 'with ID:', notificationId);
+          } catch (notificationError) {
+            console.error('❌ Error creating notification for counselor:', notificationError);
+          }
+        }
+      } catch (emailError) {
+        console.error('❌ Error sending appointment email/notification:', emailError);
+        // Don't fail the entire request if email/notification fails
+      }
+      
       return res.status(201).json({ message: 'Counselor appointment created successfully', id });
       
     } else {

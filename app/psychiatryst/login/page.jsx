@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Mail, Lock, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import PasswordResetModal from "../../../components/PasswordResetModal";
 
 export default function PsychiatristLoginPage() {
   const router = useRouter();
@@ -10,6 +11,7 @@ export default function PsychiatristLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
 
   const isFormValid = email.trim() !== "" && password.trim() !== "";
 
@@ -103,7 +105,13 @@ export default function PsychiatristLoginPage() {
                 />
               </div>
               <div className="flex justify-between items-center">
-                <a href="#" className="text-sm text-teal-600 hover:underline">Forgot password?</a>
+                <button
+                  type="button"
+                  className="text-sm text-teal-600 hover:underline"
+                  onClick={() => setShowPasswordReset(true)}
+                >
+                  Forgot password?
+                </button>
                 <button
                   type="button"
                   className="text-sm text-teal-600 hover:text-teal-800 font-medium ml-2"
@@ -134,6 +142,12 @@ export default function PsychiatristLoginPage() {
           </div>
         </div>
       </div>
+      
+      <PasswordResetModal
+        isOpen={showPasswordReset}
+        onClose={() => setShowPasswordReset(false)}
+        userType="psychiatrist"
+      />
     </div>
   );
 } 
