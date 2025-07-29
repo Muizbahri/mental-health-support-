@@ -121,14 +121,21 @@ export default function PsychiatristSignUpPage() {
     }
   }
 
+<<<<<<< HEAD
   async function handleMapMove(lat, lon) {
+=======
+  function handleMapMove(lat, lon) {
+>>>>>>> c1d1e888b096b2c85579c7e51447bfdcc026c181
     setForm(f => ({ ...f, latitude: lat, longitude: lon }));
     setMapPos({ lat, lon });
     setMarkerPos({ lat, lon });
     setMapKey(k => k + 1);
+<<<<<<< HEAD
     // Reverse geocode to update address field when marker is moved
     const addr = await reverseGeocode(lat, lon);
     setForm(f => ({ ...f, address: addr }));
+=======
+>>>>>>> c1d1e888b096b2c85579c7e51447bfdcc026c181
   }
 
   async function handleSubmit(e) {
@@ -358,15 +365,23 @@ export default function PsychiatristSignUpPage() {
                 </button>
               </div>
             </div>
+<<<<<<< HEAD
             <div className="w-full h-64 mb-2 rounded border overflow-hidden">
+=======
+            <div className="w-full h-48 mb-2">
+>>>>>>> c1d1e888b096b2c85579c7e51447bfdcc026c181
               <GeoapifyMap
                 lat={safeLat}
                 lon={safeLon}
                 markerLat={safeMarkerLat}
                 markerLon={safeMarkerLon}
+<<<<<<< HEAD
                 onMarkerMove={handleMapMove}
                 height="100%"
                 width="100%"
+=======
+                onMapMove={handleMapMove}
+>>>>>>> c1d1e888b096b2c85579c7e51447bfdcc026c181
               />
             </div>
             <div className="flex gap-4">

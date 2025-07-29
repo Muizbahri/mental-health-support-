@@ -1,6 +1,10 @@
 "use client";
 import { useEffect, useRef } from "react";
+<<<<<<< HEAD
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
+=======
+import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
+>>>>>>> c1d1e888b096b2c85579c7e51447bfdcc026c181
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -22,6 +26,7 @@ function ChangeView({ center }) {
   return null;
 }
 
+<<<<<<< HEAD
 function MapClickHandler({ onMapClick }) {
   useMapEvents({
     click: (e) => {
@@ -116,5 +121,32 @@ export default function GeoapifyMap({
         />
       </MapContainer>
     </div>
+=======
+export default function GeoapifyMap({ lat, lon, markerLat, markerLon, onMarkerMove }) {
+  const markerRef = useRef(null);
+  const center = [lat, lon];
+  const markerPosition = [markerLat, markerLon];
+
+  return (
+    <MapContainer center={center} zoom={15} style={{ height: "100%", width: "100%" }} scrollWheelZoom={true}>
+      <TileLayer
+        url={`https://maps.geoapify.com/v1/tile/osm-bright/{z}/{x}/{y}.png?apiKey=${process.env.NEXT_PUBLIC_GEOAPIFY_KEY}`}
+        attribution='&copy; <a href="https://www.geoapify.com/">Geoapify</a> contributors'
+      />
+      <ChangeView center={center} />
+      <Marker
+        position={markerPosition}
+        icon={defaultIcon}
+        draggable={!!onMarkerMove}
+        eventHandlers={onMarkerMove ? {
+          dragend: (e) => {
+            const latlng = e.target.getLatLng();
+            onMarkerMove(latlng.lat, latlng.lng);
+          },
+        } : {}}
+        ref={markerRef}
+      />
+    </MapContainer>
+>>>>>>> c1d1e888b096b2c85579c7e51447bfdcc026c181
   );
 } 

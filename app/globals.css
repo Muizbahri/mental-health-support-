@@ -58,6 +58,7 @@ body {
 .hover\:scrollbar-thumb-gray-400:hover::-webkit-scrollbar-thumb {
   background-color: #9ca3af;
 }
+<<<<<<< HEAD
 
 /* Leaflet Map Overrides */
 .leaflet-container {
@@ -93,3 +94,5 @@ body {
 .leaflet-zoom-anim .leaflet-tile {
   opacity: 0.8;
 }
+=======
+>>>>>>> c1d1e888b096b2c85579c7e51447bfdcc026c181
