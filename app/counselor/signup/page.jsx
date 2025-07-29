@@ -359,18 +359,16 @@ export default function CounselorSignUpPage() {
                   }
                 }}>Search</button>
               </div>
-              <div className="rounded border overflow-hidden mb-2" style={{ height: 220, width: "100%" }}>
+              <div className="w-full h-64 mb-2 rounded border overflow-hidden">
                 <GeoapifyMap
                   key={mapKey}
                   lat={parseFloat(form.latitude) || mapPos.lat}
                   lon={parseFloat(form.longitude) || mapPos.lon}
                   markerLat={parseFloat(form.latitude) || markerPos.lat}
                   markerLon={parseFloat(form.longitude) || markerPos.lon}
-                  onMarkerMove={(lat, lon) => {
-                    setForm(f => ({ ...f, latitude: lat, longitude: lon }));
-                    setMapPos({ lat, lon });
-                    setMarkerPos({ lat, lon });
-                  }}
+                  onMarkerMove={handleMapMove}
+                  height="100%"
+                  width="100%"
                 />
               </div>
             </div>
