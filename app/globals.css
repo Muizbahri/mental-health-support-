@@ -58,3 +58,41 @@ body {
 .hover\:scrollbar-thumb-gray-400:hover::-webkit-scrollbar-thumb {
   background-color: #9ca3af;
 }
+<<<<<<< HEAD
+
+/* Leaflet Map Overrides */
+.leaflet-container {
+  height: 100% !important;
+  width: 100% !important;
+  z-index: 1;
+  background: #f8f9fa !important;
+}
+
+.leaflet-tile-pane {
+  opacity: 1 !important;
+}
+
+.leaflet-map-pane {
+  z-index: 1;
+}
+
+.leaflet-control-container {
+  z-index: 1000;
+}
+
+/* Ensure tiles load properly */
+.leaflet-tile {
+  opacity: 1 !important;
+  transition: opacity 0.2s;
+}
+
+.leaflet-tile-loaded {
+  opacity: 1 !important;
+}
+
+/* Loading state */
+.leaflet-zoom-anim .leaflet-tile {
+  opacity: 0.8;
+}
+=======
+>>>>>>> c1d1e888b096b2c85579c7e51447bfdcc026c181
