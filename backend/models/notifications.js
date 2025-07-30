@@ -5,7 +5,7 @@ const createNotificationsTable = async () => {
   const createTableQuery = `
     CREATE TABLE IF NOT EXISTS notifications (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      user_type ENUM('admin', 'counselor', 'psychiatrist') NOT NULL,
+      user_type ENUM('admin', 'counselor', 'psychiatrist', 'public_user') NOT NULL,
       user_id INT NULL,
       title VARCHAR(255) NOT NULL,
       message TEXT,
@@ -44,6 +44,13 @@ const createNotificationsTable = async () => {
         title: 'Test notification for psychiatrist',
         message: 'This is a test notification for psychiatrist dashboard',
         data: JSON.stringify({ test: true, redirect_url: '/psychiatryst/emergency-cases' })
+      },
+      {
+        user_type: 'public_user',
+        user_id: 1,
+        title: 'Test notification for public user',
+        message: 'This is a test notification for public user dashboard',
+        data: JSON.stringify({ test: true, redirect_url: '/user-public/appointments' })
       }
     ];
     
@@ -146,21 +153,12 @@ exports.getNotificationsByUser = async (user_type, user_id = null) => {
     
     console.log('📋 First few raw rows:', rows.slice(0, 2));
     
-    // Parse JSON data for each notification with error handling
-    const parsedNotifications = rows.map((row, index) => {
-      try {
-        return {
-          ...row,
-          data: row.data ? JSON.parse(row.data) : null
-        };
-      } catch (parseError) {
-        console.error(`❌ Error parsing JSON for notification ${index}:`, parseError.message);
-        console.error('❌ Raw data:', row.data);
-        return {
-          ...row,
-          data: null // Return null if JSON parsing fails
-        };
-      }
+    // The data is already parsed by MySQL JSON column type, so no need to parse again
+    const parsedNotifications = rows.map((row) => {
+      return {
+        ...row,
+        data: row.data || null // MySQL already parsed the JSON
+      };
     });
     
     console.log('✅ Returning parsed notifications:', parsedNotifications.length);

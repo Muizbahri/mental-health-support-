@@ -33,12 +33,12 @@ exports.getNotifications = async (req, res) => {
     }
     
     // Validate user_type
-    const validUserTypes = ['admin', 'counselor', 'psychiatrist'];
+    const validUserTypes = ['admin', 'counselor', 'psychiatrist', 'public_user'];
     if (!validUserTypes.includes(user_type)) {
       console.log('❌ Invalid user_type:', user_type);
       return res.status(400).json({
         success: false,
-        message: 'Invalid user_type. Must be admin, counselor, or psychiatrist'
+        message: 'Invalid user_type. Must be admin, counselor, psychiatrist, or public_user'
       });
     }
     

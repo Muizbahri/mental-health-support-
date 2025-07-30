@@ -1,5 +1,7 @@
 const db = require('../config/db');
 const psychiatristAppointmentsModel = require('../models/psychiatristAppointments');
+const notificationsModel = require('../models/notifications');
+const publicUsersModel = require('../models/publicUser');
 
 exports.getPsychiatristAppointments = async (req, res) => {
     const psychiatristId = req.query.psychiatrist_id;
@@ -161,6 +163,72 @@ exports.updatePsychiatristAppointment = async (req, res) => {
         
         if (success) {
             console.log('Psychiatrist appointment updated successfully');
+            
+            // Create notification for public user if status changed and user_public_id exists
+            try {
+                if (user_public_id && (status === 'Accepted' || status === 'Rejected')) {
+                    console.log('🔔 Status change detected for psychiatrist appointment, creating notification for public user:', {
+                        user_public_id,
+                        status,
+                        assigned_to
+                    });
+                    
+                    // Get public user details
+                    const publicUser = await publicUsersModel.getPublicUserById(user_public_id);
+                    
+                    if (publicUser) {
+                        // Format date and time for notification
+                        const appointmentDateTime = new Date(date_time);
+                        const formattedDate = appointmentDateTime.toLocaleDateString('en-GB', {
+                            day: '2-digit',
+                            month: '2-digit', 
+                            year: 'numeric'
+                        });
+                        const formattedTime = appointmentDateTime.toLocaleTimeString('en-GB', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                        });
+                        
+                        const statusMessage = status === 'Accepted' ? 'accepted' : 'rejected';
+                        const statusIcon = status === 'Accepted' ? '✅' : '❌';
+                        
+                        console.log('🔔 Creating notification for public user (psychiatrist appointment):', {
+                            user_type: 'public_user',
+                            user_id: user_public_id,
+                            title: `Appointment ${statusMessage}`,
+                            message: `${statusIcon} Your psychiatrist appointment with Dr. ${assigned_to} on ${formattedDate} at ${formattedTime} has been ${statusMessage}`
+                        });
+                        
+                        // Create notification for public user
+                        await notificationsModel.createNotification({
+                            user_type: 'public_user',
+                            user_id: user_public_id,
+                            title: `Appointment ${statusMessage}`,
+                            message: `${statusIcon} Your psychiatrist appointment with Dr. ${assigned_to} on ${formattedDate} at ${formattedTime} has been ${statusMessage}`,
+                            data: {
+                                appointment_id: id,
+                                appointment_type: 'Psychiatrist Consultation',
+                                appointment_date: formattedDate,
+                                appointment_time: formattedTime,
+                                psychiatrist_name: assigned_to,
+                                status: status,
+                                redirect_url: '/user-public/appointments'
+                            }
+                        });
+                        
+                        console.log('✅ Notification created for public user:', publicUser.full_name, 'Status:', status);
+                    } else {
+                        console.log('❌ Public user not found with ID:', user_public_id);
+                    }
+                } else {
+                    console.log('ℹ️ No notification needed for psychiatrist appointment. user_public_id:', user_public_id, 'status:', status);
+                }
+            } catch (notificationError) {
+                console.error('❌ Error creating notification for public user:', notificationError);
+                // Don't fail the entire request if notification fails
+            }
+            
             res.json({ 
                 success: true, 
                 message: 'Psychiatrist appointment updated successfully' 

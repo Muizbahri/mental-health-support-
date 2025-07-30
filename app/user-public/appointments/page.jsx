@@ -4,6 +4,7 @@ import Sidebar from "../Sidebar";
 import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
 import useAutoRefresh from '../../../hooks/useAutoRefresh';
+import NotificationDrawer from '../../../components/NotificationDrawer';
 
 const BASE_URL = "";
 
@@ -536,12 +537,15 @@ export default function AppointmentsPage() {
               <span>Auto-refresh: ON</span>
             </div>
           </div>
-          <button
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg shadow transition text-base"
-            onClick={handleAddNewClick}
-          >
-            Schedule New Appointment
-          </button>
+          <div className="flex items-center gap-4">
+            <NotificationDrawer userType="public_user" />
+            <button
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg shadow transition text-base"
+              onClick={handleAddNewClick}
+            >
+              Schedule New Appointment
+            </button>
+          </div>
         </div>
         {/* Modal for New/Edit Appointment */}
         {showModal && (

@@ -307,6 +307,72 @@ exports.updateAppointment = async (req, res) => {
     if (!success) {
       return res.status(404).json({ success: false, message: 'Appointment not found.' });
     }
+    
+    // Create notification for public user if status changed and user_public_id exists
+    try {
+      if (user_public_id && (status === 'Accepted' || status === 'Rejected')) {
+        console.log('🔔 Status change detected, creating notification for public user:', {
+          user_public_id,
+          status,
+          assigned_to
+        });
+        
+        // Get public user details
+        const publicUser = await publicUsersModel.getPublicUserById(user_public_id);
+        
+        if (publicUser) {
+          // Format date and time for notification
+          const appointmentDateTime = new Date(date_time);
+          const formattedDate = appointmentDateTime.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: '2-digit', 
+            year: 'numeric'
+          });
+          const formattedTime = appointmentDateTime.toLocaleTimeString('en-GB', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+          
+          const statusMessage = status === 'Accepted' ? 'accepted' : 'rejected';
+          const statusIcon = status === 'Accepted' ? '✅' : '❌';
+          
+          console.log('🔔 Creating notification for public user:', {
+            user_type: 'public_user',
+            user_id: user_public_id,
+            title: `Appointment ${statusMessage}`,
+            message: `${statusIcon} Your counseling appointment with ${assigned_to} on ${formattedDate} at ${formattedTime} has been ${statusMessage}`
+          });
+          
+          // Create notification for public user
+          await notificationsModel.createNotification({
+            user_type: 'public_user',
+            user_id: user_public_id,
+            title: `Appointment ${statusMessage}`,
+            message: `${statusIcon} Your counseling appointment with ${assigned_to} on ${formattedDate} at ${formattedTime} has been ${statusMessage}`,
+            data: {
+              appointment_id: id,
+              appointment_type: 'Counseling Session',
+              appointment_date: formattedDate,
+              appointment_time: formattedTime,
+              counselor_name: assigned_to,
+              status: status,
+              redirect_url: '/user-public/appointments'
+            }
+          });
+          
+          console.log('✅ Notification created for public user:', publicUser.full_name, 'Status:', status);
+        } else {
+          console.log('❌ Public user not found with ID:', user_public_id);
+        }
+      } else {
+        console.log('ℹ️ No notification needed. user_public_id:', user_public_id, 'status:', status);
+      }
+    } catch (notificationError) {
+      console.error('❌ Error creating notification for public user:', notificationError);
+      // Don't fail the entire request if notification fails
+    }
+    
     res.json({ success: true, message: 'Appointment updated successfully.' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -469,7 +535,7 @@ exports.createPublicAppointment = async (req, res) => {
             month: '2-digit', 
             year: 'numeric'
           });
-          const formattedTime = appointmentDateTime.toLocaleTimeString('en-US', {
+          const formattedTime = appointmentDateTime.toLocaleTimeString('en-GB', {
             hour: '2-digit',
             minute: '2-digit',
             hour12: true
@@ -487,37 +553,29 @@ exports.createPublicAppointment = async (req, res) => {
                 </div>
                 
                 <div style="background-color: #f8f9fa; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #dee2e6;">
-                  <h2 style="color: #333; margin-top: 0;">Hello Dr. ${psychiatrist.full_name},</h2>
-                  <p style="font-size: 16px; line-height: 1.6; color: #555;">
-                    A new appointment has been scheduled with you. Please review the details below:
+                  <h2 style="color: #333; margin-top: 0;">Hello Dr. ${psychiatrist.full_name}!</h2>
+                  
+                  <p style="color: #555; font-size: 16px; line-height: 1.6;">
+                    You have a new psychiatrist consultation appointment scheduled with the following details:
                   </p>
                   
-                  <div style="background-color: white; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #4f46e5;">
-                    <h3 style="color: #4f46e5; margin-top: 0;">Appointment Details:</h3>
+                  <div style="background-color: white; padding: 20px; border-radius: 8px; border-left: 4px solid #4f46e5; margin: 20px 0;">
                     <table style="width: 100%; border-collapse: collapse;">
-                      <tr>
-                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Patient Name:</td>
-                        <td style="padding: 8px 0; color: #555;">${name_patient}</td>
+                      <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 10px 0; font-weight: bold; color: #333; width: 30%;">Patient:</td>
+                        <td style="padding: 10px 0; color: #555;">${name_patient}</td>
+                      </tr>
+                      <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 10px 0; font-weight: bold; color: #333;">Date:</td>
+                        <td style="padding: 10px 0; color: #555;">${formattedDate}</td>
+                      </tr>
+                      <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 10px 0; font-weight: bold; color: #333;">Time:</td>
+                        <td style="padding: 10px 0; color: #555;">${formattedTime}</td>
                       </tr>
                       <tr>
-                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Appointment Type:</td>
-                        <td style="padding: 8px 0; color: #555;">Psychiatrist Consultation</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Date:</td>
-                        <td style="padding: 8px 0; color: #555;">${formattedDate}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Time:</td>
-                        <td style="padding: 8px 0; color: #555;">${formattedTime}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Status:</td>
-                        <td style="padding: 8px 0; color: #555;">${status}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 8px 0; font-weight: bold; color: #333;">Contact:</td>
-                        <td style="padding: 8px 0; color: #555;">${userContact}</td>
+                        <td style="padding: 10px 0; font-weight: bold; color: #333;">Contact:</td>
+                        <td style="padding: 10px 0; color: #555;">${userContact}</td>
                       </tr>
                     </table>
                   </div>
@@ -549,6 +607,13 @@ exports.createPublicAppointment = async (req, res) => {
           console.log('✅ Email sent to psychiatrist:', psychiatrist.email);
           
           // Create notification for psychiatrist
+          console.log('🔔 Creating notification for psychiatrist:', {
+            user_type: 'psychiatrist',
+            user_id: psychiatrist.id,
+            title: 'New appointment scheduled',
+            message: `New appointment with ${name_patient} on ${formattedDate} at ${formattedTime}`
+          });
+          
           await notificationsModel.createNotification({
             user_type: 'psychiatrist',
             user_id: psychiatrist.id,
@@ -705,6 +770,13 @@ exports.createPublicAppointment = async (req, res) => {
           console.log('✅ Email sent to counselor:', counselor.email);
           
           // Create notification for counselor
+          console.log('🔔 Creating notification for counselor:', {
+            user_type: 'counselor',
+            user_id: counselor.id,
+            title: 'New appointment scheduled',
+            message: `New appointment with ${name_patient} on ${formattedDate} at ${formattedTime}`
+          });
+          
           await notificationsModel.createNotification({
             user_type: 'counselor',
             user_id: counselor.id,
