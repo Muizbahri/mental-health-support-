@@ -14,6 +14,9 @@ const getUserId = (userType) => {
       case 'psychiatrist':
         token = localStorage.getItem('psychiatrystToken'); // Note: psychiatryst not psychiatrist
         break;
+      case 'public_user':
+        token = localStorage.getItem('publicToken');
+        break;
       case 'admin':
       default:
         // Admin doesn't have a specific user ID
@@ -21,13 +24,16 @@ const getUserId = (userType) => {
         return null;
     }
     
-    console.log('getUserId - userType:', userType, 'token found:', !!token);
+    console.log('🔍 getUserId - userType:', userType, 'token found:', !!token);
+    console.log('🔍 Raw token (first 50 chars):', token ? token.substring(0, 50) + '...' : 'No token');
     
     if (!token || typeof token !== 'string') {
       console.log('getUserId - no valid token found');
       return null;
     }
     
+    // Try to get user ID from token
+    let userIdFromToken = null;
     try {
       // Check if token is in JWT format (3 parts separated by dots)
       const tokenParts = token.split('.');
@@ -42,9 +48,16 @@ const getUserId = (userType) => {
         const standardBase64 = paddedPayload.replace(/-/g, '+').replace(/_/g, '/');
         
         const decoded = JSON.parse(atob(standardBase64));
-        const userId = decoded.id || decoded.counselorId || decoded.psychiatristId || decoded.user_id || null;
-        console.log('getUserId - JWT decoded:', { decoded, extractedUserId: userId });
-        return userId;
+        
+        if (userType === 'public_user') {
+          // For public users, the token contains { id, email, role: 'public' }
+          userIdFromToken = decoded.id;
+        } else {
+          // For other user types, try different ID fields
+          userIdFromToken = decoded.id || decoded.counselorId || decoded.psychiatristId || decoded.user_id || null;
+        }
+        
+        console.log('🔍 getUserId - JWT decoded:', { decoded, userType, extractedUserId: userIdFromToken });
       } else {
         // Simple base64 encoded token
         // Add padding if needed
@@ -54,14 +67,54 @@ const getUserId = (userType) => {
         const standardBase64 = paddedToken.replace(/-/g, '+').replace(/_/g, '/');
         
         const decoded = JSON.parse(atob(standardBase64));
-        const userId = decoded.id || decoded.counselorId || decoded.psychiatristId || decoded.user_id || null;
-        console.log('getUserId - Simple base64 decoded:', { decoded, extractedUserId: userId });
-        return userId;
+        
+        if (userType === 'public_user') {
+          // For public users, the token contains { id, email, role: 'public' }
+          userIdFromToken = decoded.id;
+        } else {
+          // For other user types, try different ID fields
+          userIdFromToken = decoded.id || decoded.counselorId || decoded.psychiatristId || decoded.user_id || null;
+        }
+        
+        console.log('🔍 getUserId - Simple base64 decoded:', { decoded, userType, extractedUserId: userIdFromToken });
       }
     } catch (decodeError) {
       console.warn('Failed to decode token for user type:', userType, decodeError.message);
-      return null;
     }
+    
+    // Fallback: Try to get user ID from localStorage user data
+    let userIdFromStorage = null;
+    try {
+      let userDataKey = null;
+      switch (userType) {
+        case 'counselor':
+          userDataKey = 'counselorUser';
+          break;
+        case 'psychiatrist':
+          userDataKey = 'psychiatrystUser';
+          break;
+        case 'public_user':
+          userDataKey = 'publicUser';
+          break;
+      }
+      
+      if (userDataKey) {
+        const userData = localStorage.getItem(userDataKey);
+        if (userData) {
+          const parsedUser = JSON.parse(userData);
+          userIdFromStorage = parsedUser.id;
+          console.log('🔍 getUserId - Found user data in localStorage:', { userDataKey, parsedUser, userId: userIdFromStorage });
+        }
+      }
+    } catch (storageError) {
+      console.warn('Failed to get user ID from localStorage:', storageError.message);
+    }
+    
+    // Use token ID first, fallback to storage ID
+    const finalUserId = userIdFromToken || userIdFromStorage;
+    console.log('🔍 getUserId - Final decision:', { userType, tokenId: userIdFromToken, storageId: userIdFromStorage, finalId: finalUserId });
+    
+    return finalUserId;
   } catch (error) {
     console.error('Error getting user ID for user type:', userType, error.message);
     return null;
@@ -89,6 +142,11 @@ export default function NotificationDrawer({ userType = 'admin', userId = null }
       if (effectiveUserId) params.append('user_id', effectiveUserId.toString());
       
       console.log('🔄 Fetching notifications with params:', { userType, effectiveUserId, paramsString: params.toString() });
+      console.log('🔍 Expected user should have these details:', {
+        psychiatrist: 'Dr. Aiman Zaid (ID: 21)',
+        counselor: 'Siti Aminah (ID: 27)',
+        public_user: 'Nur Aina Zulaikha (ID: 34)'
+      });
       
       const apiUrl = `/api/notifications?${params}`;
       console.log('🌐 Making request to:', apiUrl);
